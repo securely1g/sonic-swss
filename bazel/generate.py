@@ -310,6 +310,9 @@ class Generator:
                 relative_path(child_path.as_posix())
                 pending.append(child_path.as_posix())
             for variable in sorted(variables):
+                # Automake's install commands are not installed data primaries.
+                if variable in ("INSTALL_DATA", "install_sh_DATA"):
+                    continue
                 match = PRIMARY.fullmatch(variable)
                 if not match or variable.startswith("am__") or not value(variables, variable):
                     continue

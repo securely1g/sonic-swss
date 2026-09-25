@@ -63,7 +63,10 @@ class Fixture:
         self.write_makefiles(team=True)
 
     def write_makefiles(self, team: bool) -> None:
-        common = f"abs_top_srcdir = {self.source}\nCXX = g++\nEXEEXT =\n"
+        common = (
+            f"abs_top_srcdir = {self.source}\nCXX = g++\nEXEEXT =\n"
+            + "INSTALL_DATA = /usr/bin/install -c -m 644\ninstall_sh_DATA = ./install-sh -c -m 644\n"
+        )
         (self.configured / "Makefile").write_text(
             common + "SUBDIRS = app\n" + f"WITH_TEAM = {'yes' if team else 'no'}\n"
             + "ifeq ($(WITH_TEAM),yes)\nSUBDIRS += team\nendif\n"
