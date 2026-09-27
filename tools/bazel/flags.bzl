@@ -48,6 +48,30 @@ CXXFLAGS_COMMON = [
     "-Wno-missing-include-dirs",
 ]
 
+# Preserve the effective hardening flags passed by the nested debian/rules
+# invocation in a normal Trixie dpkg-buildpackage build. GCC 14.2.0 is built
+# with --enable-default-pie.
+# The existing warning set already includes -Wformat=2 and -Werror.
+RELEASE_HARDENING_COPTS = select({
+    "//tools/bazel:release_link": [
+        "-Wdate-time",
+        "-U_FORTIFY_SOURCE",
+        "-D_FORTIFY_SOURCE=3",
+        "-fstack-protector-strong",
+        "-fstack-clash-protection",
+    ],
+    "//conditions:default": [],
+}) + select({
+    "//tools/bazel:release_x86_64": ["-fcf-protection"],
+    "//tools/bazel:release_arm64": ["-mbranch-protection=standard"],
+    "//conditions:default": [],
+})
+
+RELEASE_HARDENING_LINKOPTS = select({
+    "//tools/bazel:release_link": ["-Wl,-z,relro", "-Wl,-z,now"],
+    "//conditions:default": [],
+})
+
 DBGFLAGS = select({
     "@sonic_build_infra//:debug_enabled": ["-ggdb", "-DDEBUG"],
     "//conditions:default": ["-g"],

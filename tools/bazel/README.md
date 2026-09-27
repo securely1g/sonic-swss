@@ -67,11 +67,10 @@ Common's existing YANG C++ sources.
 
 ## Build commands
 
-These standalone commands use module versions from the companion `bazel-swss`
-branch of `securely1g/sonic-bazel-registry`. Make that checkout visible to Bazel and put
-`common --registry=file:///registry` first among the registry entries in the
-SWSS root `.bazelrc`, adjusting `/registry` to the visible mount path as shown
-in the canonical caller guide.
+The root `.bazelrc` pins the required module versions to commit
+`1bce1094dcdc7e511baaa809fa622862585bcf8d` of
+`securely1g/sonic-bazel-registry`. The canonical caller guide shows how an
+external module caller can use the same registry contents from a local checkout.
 
 Run these commands from the repository root. Replace the manifest path with a
 local path whose DEBs are visible to the build process.
@@ -113,7 +112,7 @@ same configuration and `--output=files` to print an artifact's output path.
 
 | Configuration | Effect |
 | --- | --- |
-| `--config=release` | Selects Bazel `opt` mode and adds `-O2` for C/C++. The selected GCC toolchain does not currently add optimization for `opt` itself. |
+| `--config=release` | Selects Bazel `opt` mode and adds `-O2` for C/C++. Production binaries also use the normal Trixie native build's hardening flags when ASAN and GCOV are disabled. The selected GCC toolchain does not currently add optimization for `opt` itself. |
 | `--config=debug` | Selects Bazel `dbg` mode and the SWSS debug definitions. |
 | `--config=asan` | Enables the existing SWSS C++ AddressSanitizer flags and startup sources. |
 | `--config=gcov` | Enables SWSS C++ coverage instrumentation and `-O0`. |
