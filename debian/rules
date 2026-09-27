@@ -41,14 +41,30 @@ ifeq ($(ENABLE_GCOV), y)
 endif
 
 override_dh_auto_configure:
+ifeq ($(SONIC_BAZEL_STAGEDIR),)
 	dh_auto_configure -- $(configure_opts)
+else
+	python3 bazel/package_deb.py check-stage --stage "$(SONIC_BAZEL_STAGEDIR)"
+endif
 
 override_dh_auto_build:
+ifeq ($(SONIC_BAZEL_STAGEDIR),)
 	dh_auto_build
 	# Build and test countersyncd Rust project
 	cargo build --release --locked
+else
+	python3 bazel/package_deb.py check-stage --stage "$(SONIC_BAZEL_STAGEDIR)"
+endif
+
+ifneq ($(SONIC_BAZEL_STAGEDIR),)
+# Bazel builds the binaries before this packaging-only invocation. Validate
+# the stage here without triggering an Autotools rebuild.
+override_dh_auto_test:
+	python3 bazel/package_deb.py check-stage --stage "$(SONIC_BAZEL_STAGEDIR)"
+endif
 
 override_dh_auto_install:
+ifeq ($(SONIC_BAZEL_STAGEDIR),)
 	dh_auto_install --destdir=debian/swss
 ifeq ($(ENABLE_GCOV), y)
 	mkdir -p debian/swss/tmp/gcov
@@ -56,6 +72,9 @@ ifeq ($(ENABLE_GCOV), y)
 	lcov --add-tracefile coverage.info -o coverage.info
 	lcov_cobertura coverage.info -o coverage.xml
 	find ./ -type f -regex '.*\.\(h\|cpp\|gcno\|info\)' | tar -cf debian/swss/tmp/gcov/gcov-source.tar -T -
+endif
+else
+	python3 bazel/package_deb.py install-stage --stage "$(SONIC_BAZEL_STAGEDIR)" --destination debian/swss
 endif
 
 override_dh_auto_clean:

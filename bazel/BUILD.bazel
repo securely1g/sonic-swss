@@ -1,0 +1,3 @@
+exports_files([
+    "production_sources.bzl",
+])
