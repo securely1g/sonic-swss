@@ -1,0 +1,34 @@
+common --check_direct_dependencies=off
+common --noincompatible_disallow_empty_glob
+
+# Resolve the SONiC overlay modules before the Bazel Central Registry.
+common --registry=https://raw.githubusercontent.com/blorente/sonic-bazel-registry/main
+common --registry=https://bcr.bazel.build/
+
+# sonic-buildimage supplies checkout overrides when this repository is a submodule.
+try-import %workspace%/../../tools/bazel/submodule-config.bazelrc
+
+# These toolchains execute on the same CPU they target.
+common --platforms=@sonic_build_infra//platforms:x86_64_trixie
+common:aarch64 --platforms=@sonic_build_infra//platforms:aarch64_trixie
+
+# PR #1215 supports the no-YANG configuration as a standalone module.
+# A parent workspace can select its own configuration when importing SWSS.
+common --@sonic_swss_common//tools/bazel:yang_modules=False
+
+# Select the explicit local CI-DEB prototype. The caller also supplies
+# SONIC_SWSS_CI_DEBS_MANIFEST through --repo_env.
+common:ci-debs --//tools/bazel:ci_debs=True
+common:ci-debs --@sonic_swss_common//tools/bazel:cfg_schema=@sonic_ci_debs//:cfg_schema
+common:ci-debs --@sonic_swss_common//tools/bazel:yang_modules=True
+
+# The current GCC toolchain does not add optimization flags for opt mode.
+build:release --compilation_mode=opt
+build:release --copt=-O2
+
+build:asan --//tools/bazel:asan=True
+build:gcov --//tools/bazel:gcov=True
+build:debug --compilation_mode=dbg
+
+# Keep local configuration outside source control.
+try-import %workspace%/.bazelrc.user

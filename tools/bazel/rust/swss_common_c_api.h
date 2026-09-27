@@ -1,0 +1,15 @@
+#include <swss/c-api/configdbconnector.h>
+#include <swss/c-api/consumerstatetable.h>
+#include <swss/c-api/dbconnector.h>
+#include <swss/c-api/events.h>
+#include <swss/c-api/logger.h>
+#include <swss/c-api/producerstatetable.h>
+#include <swss/c-api/result.h>
+#include <swss/c-api/sonicv2connector.h>
+#include <swss/c-api/subscriberstatetable.h>
+#include <swss/c-api/table.h>
+#include <swss/c-api/util.h>
+#include <swss/c-api/zmqclient.h>
+#include <swss/c-api/zmqconsumerstatetable.h>
+#include <swss/c-api/zmqproducerstatetable.h>
+#include <swss/c-api/zmqserver.h>

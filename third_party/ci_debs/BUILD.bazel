@@ -1,0 +1,8 @@
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "BUILD.template.bazel",
+    "extensions.bzl",
+    "manifest.example.json",
+    "repositories.bzl",
+])
