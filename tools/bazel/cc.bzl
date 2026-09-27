@@ -11,6 +11,8 @@ load(
     "DBGFLAGS_NDEBUG",
     "GCOV_COPTS",
     "GCOV_LINKOPTS",
+    "RELEASE_HARDENING_COPTS",
+    "RELEASE_HARDENING_LINKOPTS",
 )
 
 def _cxxopts(cxxopts, ndebug, asan):
@@ -32,7 +34,19 @@ def swss_cc_library(name, srcs = [], hdrs = [], deps = [], cxxopts = [], linkopt
     )
 
 def swss_cc_binary(name, srcs = [], deps = [], cxxopts = [], linkopts = [], ndebug = False, asan = True, gcov_preload = "static", **kwargs):
-    """Declares a daemon and retains its ASAN/GCOV startup objects."""
+    """Declares a daemon and retains its ASAN/GCOV startup objects.
+
+    Args:
+      name: Bazel target name.
+      srcs: C++ source labels.
+      deps: C++ dependency labels.
+      cxxopts: Additional C++ compiler options.
+      linkopts: Additional linker options.
+      ndebug: Whether to define NDEBUG outside the debug configuration.
+      asan: Whether to apply ASAN flags and startup sources when enabled.
+      gcov_preload: GCOV startup mode: "static", "shared", or "none".
+      **kwargs: Additional cc_binary attributes.
+    """
     if gcov_preload not in ["static", "shared", "none"]:
         fail("gcov_preload must be static, shared, or none")
 
@@ -67,14 +81,27 @@ def swss_cc_binary(name, srcs = [], deps = [], cxxopts = [], linkopts = [], ndeb
         name = name,
         srcs = srcs,
         deps = deps,
-        cxxopts = _cxxopts(cxxopts, ndebug, asan),
+        cxxopts = _cxxopts(cxxopts, ndebug, asan) + RELEASE_HARDENING_COPTS,
         features = binary_features,
-        linkopts = _linkopts(linkopts, asan),
+        linkopts = _linkopts(linkopts, asan) + RELEASE_HARDENING_LINKOPTS,
         **kwargs
     )
 
 def swss_cc_test(name, srcs = [], deps = [], cxxopts = [], linkopts = [], ndebug = False, asan = False, data = [], args = [], **kwargs):
-    """Declares a native test and runs it from its package's runfiles directory."""
+    """Declares a native test and runs it from its package's runfiles directory.
+
+    Args:
+      name: Public test target name.
+      srcs: C++ source labels.
+      deps: C++ dependency labels.
+      cxxopts: Additional C++ compiler options.
+      linkopts: Additional linker options.
+      ndebug: Whether to define NDEBUG outside the debug configuration.
+      asan: Whether to apply ASAN flags when enabled.
+      data: Runfiles required by the binary and wrapper.
+      args: Arguments passed to the native test binary.
+      **kwargs: Additional test attributes forwarded to the binary or wrapper.
+    """
     wrapper_attrs = {}
     for attr_name in [
         "env",
