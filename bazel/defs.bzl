@@ -1,6 +1,5 @@
 """Actions used by the generated SONiC SWSS Bazel package."""
 
-
 def _swss_cargo_binary_impl(ctx):
     output = ctx.actions.declare_file(ctx.label.name)
     args = ctx.actions.args()
@@ -23,7 +22,6 @@ def _swss_cargo_binary_impl(ctx):
         },
     )
     return [DefaultInfo(files = depset([output]))]
-
 
 swss_cargo_binary = rule(
     implementation = _swss_cargo_binary_impl,

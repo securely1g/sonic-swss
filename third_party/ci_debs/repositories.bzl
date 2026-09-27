@@ -21,6 +21,7 @@ _ARCHIVE_SUFFIXES = [".xz", ".gz", ".zst", ""]
 
 def _file_url(path):
     value = str(path)
+
     # These are the characters that cannot be used literally in a file URL's
     # path. Keep '/' intact so absolute paths remain absolute.
     for char, escaped in {
@@ -87,6 +88,7 @@ def _import_package(rctx, manifest_path, package, entry, architecture):
         fail("Manifest package does not exist: {}".format(package_path))
 
     archive = "_archives/{}.deb".format(package)
+
     # Read the selected local file on every repository fetch. Passing sha256 to
     # download() could satisfy the request from the repository cache without
     # reading a changed local file; compare the returned digest instead.

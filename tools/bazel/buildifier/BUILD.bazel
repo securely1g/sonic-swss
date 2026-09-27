@@ -1,15 +1,23 @@
 load("@buildifier_prebuilt//:rules.bzl", "buildifier")
 
+EXCLUDE_PATTERNS = [
+    "./.git/*",
+    "./bazel-*/*",
+    # The generator owns this file's JSON-literal formatting.
+    "./bazel/production_sources.bzl",
+    "./target/*",
+]
+
 buildifier(
     name = "buildifier",
-    exclude_patterns = ["./.git/*", "./bazel-*/*", "./target/*"],
+    exclude_patterns = EXCLUDE_PATTERNS,
     lint_mode = "fix",
     mode = "fix",
 )
 
 buildifier(
     name = "buildifier.check",
-    exclude_patterns = ["./.git/*", "./bazel-*/*", "./target/*"],
+    exclude_patterns = EXCLUDE_PATTERNS,
     lint_mode = "warn",
     mode = "diff",
 )
