@@ -1,11 +1,11 @@
-# SWSS Bazel package
+# SWSS Bazel generator
 
-This directory provides the SWSS package used by the opt-in Bazel build in
-`sonic-buildimage`. The buildimage launcher prepares the normal public SONiC
-build environment, configures SWSS, generates this package, and owns the
-workspace-level Bazel configuration and image graph.
+This directory generates Bazel C++ and Cargo targets from a configured SWSS
+tree. It also emits `production_sources.bzl` for the module targets in this
+repository. The configured Automake files remain the source of truth for
+program selection, source membership, flags, and installed data.
 
-## Generate the package with default C++ targets
+## Generate C++ and Cargo targets
 
 Run the generator inside the same prepared `sonic-slave` environment that will
 run Bazel. The source tree must contain the local SWSS changes and the configured
@@ -21,7 +21,6 @@ python3 bazel/generate.py \
   --configured-build /work/inputs/sonic-swss \
   --cargo-vendor /work/target/bazel/cargo-vendor \
   --cargo-vendor-config /work/target/bazel/cargo-vendor.toml \
-  --deb-build-options "$DEB_BUILD_OPTIONS" \
   --output-package /work/target/bazel/workspace/swss
 ```
 
@@ -32,53 +31,41 @@ without its ownership marker. Generated build files contain workspace-relative
 source paths. For the public `fpmsyncd` inventory, an unset legacy `FPM_PATH`
 uses the local `fpmsyncd` header directory. Explicit values are preserved.
 
-The default generator mode emits the C++ targets in the generated package. In
-this mode, the root workspace must use Bazel 8.5.1 and declare:
+The generator emits C++ targets in the generated package. The root workspace
+must use Bazel 8.5.1 and declare:
 
 ```starlark
 bazel_dep(name = "rules_cc", version = "0.1.1")
 ```
 
-The configured C++ compiler and Bazel's local C++ toolchain must be the same in
-default generator mode. The external module caller described below uses the
+The configured C++ compiler and Bazel's local C++ toolchain must be the same for
+the generated package. The external module caller described below uses the
 Bazel-managed GCC toolchain and its own `rules_cc` pin.
 
 ## Prepared environment requirements
 
-Both modes run the Cargo and Debian actions in the prepared `sonic-slave`
-environment. Use `build --strip=never` so debhelper receives the DWARF
-information needed by `swss-dbg`.
-The launcher must include the prepared environment identity in every action
-key, for example with
+The generated Cargo action runs in the prepared `sonic-slave` environment.
+The launcher must include that environment's identity in every action key,
+for example with
 `--action_env=SONIC_BAZEL_ENVIRONMENT_DIGEST=<digest>`. That identity must cover
-the installed compiler, system headers, libraries, Cargo toolchain, and Debian
-packaging tools. `SOURCE_DATE_EPOCH` should also be explicit. The generator
-defaults the package epoch to the Debian changelog timestamp; the launcher can
-set it with `--source-date-epoch`. `--architecture` defaults to
-`dpkg-architecture -qDEB_HOST_ARCH`.
-The launcher passes the evaluated release `DEB_BUILD_OPTIONS` with
-`--deb-build-options`; direct generator use defaults to an empty value. The
-generator records the exact value in `inventory.json`, and the package action
-uses it for Debian packaging. The launcher validates supported release options.
+the installed compiler, system headers, libraries, and Cargo toolchain.
+`SOURCE_DATE_EPOCH` should also be explicit. The generator defaults the Cargo
+epoch to the Debian changelog timestamp; the launcher can set it with
+`--source-date-epoch`.
 
 ## Targets and outputs
 
-The default generated package uses these labels:
+The generated package uses these labels:
 
 | Target | Output |
 | --- | --- |
 | `//swss:<program>` | One configured SWSS C++ program |
 | `//swss:countersyncd` | Locked Cargo release binary |
-| `//swss:swss_deb` | Versioned `swss` Debian package |
-| `//swss:swss_dbg_deb` | Matching `swss-dbg` Debian package |
-| `//swss:swss_package_manifest` | Package metadata, file inventory, and SHA-256 digests |
 
 `inventory.json` records the configured program sources, compiler and linker
-options, installed files, package names, architecture, and version. The C++
-rules compile each translation unit separately, so a source edit rebuilds the
-affected objects and programs. Package inputs contain the resulting binaries,
-Debian metadata, and runtime data; they do not include unrelated C++ source
-files. A C++ edit therefore reuses the cached Cargo output.
+options, Automake install paths, and Cargo vendor metadata. The C++ rules
+compile each translation unit separately, so a source edit rebuilds the
+affected objects and programs. A C++ edit can reuse the cached Cargo output.
 
 The Cargo action runs
 `cargo build --release --locked --offline --bin countersyncd` using the public
@@ -117,37 +104,20 @@ cp /work/target/bazel/workspace/swss/production_sources.bzl \
   /work/inputs/sonic-swss/bazel/production_sources.bzl
 ```
 
-Use the source map and packaging inventory from the same generation run.
 Source membership changes belong in Automake and are then regenerated here.
 
-The default mode emits the C++ targets in the generated package. A caller that
-already declares those binaries in a SWSS module can add:
+## Build C++ targets from an external module caller
 
-```text
---binary-label-prefix @sonic_swss
-```
-
-This mode derives labels such as `@sonic_swss//cfgmgr:vlanmgrd` from the same
-configured program inventory and passes them to the existing Debian rule. It
-continues to generate the locked Cargo target, both DEB targets, and the package
-manifest. The caller supplies the module repository and its dependency
-configuration. Keep the generated package in the caller's main workspace;
-its source bundle paths are workspace-relative. An empty prefix selects
-component labels in the current repository.
-
-## Build DEBs from an external module caller
-
-This caller uses the SWSS module for the C++ binaries and keeps the generator's
-locked Cargo action and Debian packaging. The generated package remains in the
-caller's main workspace. The example uses Bazel 8.5.1 and paths visible inside
-the prepared build environment; adjust those paths to match your mounts.
+This caller builds the SWSS module's C++ targets with the managed GCC toolchain.
+The example uses Bazel 8.5.1 and paths visible inside the build environment;
+adjust those paths to match your mounts.
 
 ### Caller module
 
 Create the caller's `MODULE.bazel` with the current iteration pins:
 
 ```starlark
-module(name = "sonic_swss_generated")
+module(name = "sonic_swss_caller")
 
 bazel_dep(name = "rules_cc", version = "0.2.16")
 bazel_dep(name = "sonic-swss", version = "0.0.0", repo_name = "sonic_swss")
@@ -176,8 +146,8 @@ use_repo(ci_debs, "sonic_ci_debs")
 ```
 
 Register GCC in the root caller so the managed toolchain takes priority over
-`local_config_cc`. The local SWSS override points to the source tree used for
-generation. Declaring `sonic_ci_debs` makes the repository available; the
+`local_config_cc`. The local SWSS override points to the source tree containing
+the generated source map. Declaring `sonic_ci_debs` makes the repository available; the
 configuration and manifest below select and supply its inputs.
 
 ### Caller Bazel configuration
@@ -198,100 +168,44 @@ common:ci-debs --@sonic_swss_common//tools/bazel:yang_modules=True
 
 build:release --compilation_mode=opt
 build:release --copt=-O2
-build --strip=never
-build --action_env=SONIC_BAZEL_ENVIRONMENT_DIGEST
-build --action_env=SOURCE_DATE_EPOCH
-build --action_env=PATH
-build --action_env=RUSTUP_HOME
 ```
 
 `/registry` is an example mount path for the companion
 `securely1g/sonic-bazel-registry` checkout. Use branch `bazel-swss` at commit
-`8ed1f2851f5b12c69d0ae276aa3871e28e02199e`, then mount that checkout at
+`1bce1094dcdc7e511baaa809fa622862585bcf8d`, then mount that checkout at
 `/registry` in the build environment. Use its visible absolute path in the
 `file://` URL when your mount differs. BCR remains the fallback registry.
-The caller disables lockfile use for this local registry iteration.
-
-Set `SONIC_BAZEL_ENVIRONMENT_DIGEST` and `SOURCE_DATE_EPOCH` in the caller's
-environment before running Bazel, using the requirements above. Preserve the
-prepared environment's `PATH` and `RUSTUP_HOME`. The digest still covers the
-installed inputs used by Cargo and Debian packaging, including library and
-package metadata used by `dpkg-shlibdeps`.
+The caller disables lockfile use for this local registry iteration. The pinned
+Common entry fetches revision `10d14ae58ae73899a52a2447d1e791a2b7bd1a34` from
+`securely1g/sonic-swss-common` and applies the registry's Bazel migration patch.
 
 The three `ci-debs` flags select the SWSS dependency provider, the imported
 schema, and Common's existing YANG C++ sources. The explicit
 `SONIC_SWSS_CI_DEBS_MANIFEST` below names the local package files and their hashes;
 see the [CI DEB import guide](../third_party/ci_debs/README.md).
 
-### Generate and build the DEBs
+### Build the C++ programs
 
-From `/inputs/sonic-swss`, use the configured Linux VS release source tree and
-the prepared Cargo vendor directory described above:
-
-```sh
-python3 bazel/generate.py \
-  --source /inputs/sonic-swss \
-  --configured-build /inputs/sonic-swss \
-  --cargo-vendor /work/target/bazel/cargo-vendor \
-  --cargo-vendor-config /work/target/bazel/cargo-vendor.toml \
-  --deb-build-options "$DEB_BUILD_OPTIONS" \
-  --source-date-epoch "$SOURCE_DATE_EPOCH" \
-  --output-package /work/target/bazel/workspace/swss-module \
-  --workspace-package swss-module \
-  --binary-label-prefix @sonic_swss
-cp /work/target/bazel/workspace/swss-module/production_sources.bzl \
-  /inputs/sonic-swss/bazel/production_sources.bzl
-```
-
-Run Bazel from `/work/target/bazel/workspace`, with a manifest and DEBs visible
-to the build process:
+Run Bazel from the caller workspace, with the dependency manifest and its DEBs
+visible to the build process:
 
 ```sh
 bazel build --config=release --config=ci-debs \
   --repo_env=SONIC_SWSS_CI_DEBS_MANIFEST=/absolute/path/to/manifest.json \
-  //swss-module:swss_deb \
-  //swss-module:swss_dbg_deb
+  @sonic_swss//dist:cpp_binaries
 ```
 
-The same action also writes `swss-package-manifest.json`, exposed as
-`//swss-module:swss_package_manifest`. It retains the prepared Cargo and
-debhelper environment described above; importing C++ headers and libraries
-does not install packages into that environment.
+This target selects all 29 C++ programs. For a single program, use a label such
+as `@sonic_swss//orchagent:orchagent` with the same configuration.
 
-## Debian packaging
-
-The package action copies Bazel-built native executables and configured
-Automake data into a validated staging tree. It puts `countersyncd` at the source
-path expected by `debian/swss.install`, then runs:
-
-```sh
-dpkg-buildpackage -b -uc -us -nc
-```
-
-`SONIC_BAZEL_STAGEDIR` selects the packaging-only branches in `debian/rules`.
-Those branches validate the staged files, skip the already completed native
-build, and install the staged Automake output. The existing debhelper binary
-sequence still installs `debian/swss.install`, computes shared-library
-dependencies, strips binaries into `swss-dbg`, generates control metadata, and
-builds both `.deb` files. Normal builds without `SONIC_BAZEL_STAGEDIR` retain the
-existing Autotools and Cargo flow.
-
-The action checks package name, version, architecture, root ownership, required
-paths and modes, ELF payloads, and data contents. It requires a nonempty computed
-`Depends` field for `swss`, a dependency on the matching `swss` version in
-`swss-dbg`, and the presence of DWARF debug information before exposing the
-outputs. The Cargo and Debian actions execute locally in the prepared slave and
-can reuse Bazel cached outputs.
-
-The first supported image configuration is the normal Linux VS release build.
-The generator rejects GCOV packaging, installed libraries, custom Automake
-install hooks, generated `BUILT_SOURCES`, local link dependencies, and complex
-`dh_install` expressions until those inputs have explicit Bazel rules. This
-prevents a new upstream build shape from silently omitting package content.
+The source map is generated from the normal Linux VS release configuration.
+The generator rejects GCOV inputs, installed libraries, custom Automake install
+hooks, generated `BUILT_SOURCES`, and local link dependencies until those inputs
+have explicit Bazel rules.
 
 ## Validation
 
-Run the focused generator and staging tests with:
+Run the focused generator tests with:
 
 ```sh
 python3 -m unittest discover -s bazel/tests -v

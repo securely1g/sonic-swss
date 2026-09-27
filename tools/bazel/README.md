@@ -2,19 +2,22 @@
 
 This repository defines Bazel module targets for the SWSS C++ programs. The
 existing generator supplies their production source lists and retains the
-locked Cargo and Debian packaging actions used by sonic-buildimage.
-It follows the Bazel 8.5.1 and Bzlmod approach used by
+locked Cargo action for `countersyncd`.
+The Common dependency is fetched from
+[securely1g/sonic-swss-common](https://github.com/securely1g/sonic-swss-common)
+at revision `10d14ae58ae73899a52a2447d1e791a2b7bd1a34`. Its registry entry
+applies the Bazel migration from
 [sonic-swss-common PR #1215](https://github.com/sonic-net/sonic-swss-common/pull/1215).
 
-The existing generator mode remains the default. For the optional module-backed
-DEB caller, use the [canonical caller guide](../../bazel/README.md#build-debs-from-an-external-module-caller).
+For an external module caller, use the
+[canonical caller guide](../../bazel/README.md#build-c-targets-from-an-external-module-caller).
 
 ## Structure
 
 - `MODULE.bazel` pins the toolchains and external dependencies.
 - Each component directory contains its C++ program and header targets.
 - `bazel/generate.py` reads the configured Automake build and emits
-  `production_sources.bzl` plus the caller's generated DEB package. The module
+  `production_sources.bzl` plus generated C++ and Cargo targets. The module
   loads a copy of that source map from `bazel/production_sources.bzl`.
 - `tools/bazel/cc.bzl` applies the common SWSS compiler options and the native
   ASAN and GCOV source selections.
@@ -34,12 +37,12 @@ toolchains target Debian Trixie. They execute on the same CPU they target:
 the default configuration is Linux x86-64, and `--config=aarch64` requires an
 Arm64 build host.
 
-The DEB path builds `countersyncd` through the existing locked, offline Cargo
-action. The separate `//crates/countersyncd:countersyncd` target uses
+The generated `//swss:countersyncd` target uses the existing locked, offline
+Cargo action. The separate `//crates/countersyncd:countersyncd` target uses
 `rules_rust`, bindgen, and Clang and remains a draft migration.
 An external caller must register the managed GCC toolchain in its root module;
-the canonical caller guide includes that registration and the prepared Cargo
-and debhelper environment requirements.
+the canonical caller guide includes that registration. The generator guide
+describes the prepared environment required by its Cargo action.
 
 ## SONiC dependency inputs
 
@@ -57,8 +60,7 @@ It does not select or download a latest CI artifact. See the
 [CI DEB import documentation](../../third_party/ci_debs/README.md) for the
 manifest format, package provenance, and labels.
 
-`ci-debs` remains an opt-in provider for module builds. It does not change the
-generator's default mode. Targets that require these inputs report a
+`ci-debs` remains an opt-in provider for module builds. Targets that require these inputs report a
 configuration error when no provider is selected. The canonical caller guide
 shows the provider and schema selection flags and the flag that includes
 Common's existing YANG C++ sources.
@@ -120,15 +122,6 @@ ASAN and GCOV can be combined with `release`; GCOV's per-target `-O0` takes
 precedence for SWSS C++ compilation. These flags do not instrument Rust,
 matching the native build's separate Cargo invocation.
 
-## Debian packaging
-
-The preserved sonic-buildimage contract is `swss` and `swss-dbg` Debian
-packages. The [canonical caller guide](../../bazel/README.md#build-debs-from-an-external-module-caller)
-contains the module pins, root GCC registration, local registry setup,
-generator invocation, and both DEB commands. Its `//swss-module` package
-consumes the module's 29 C++ binaries while retaining the existing Cargo and
-debhelper actions. The package and manifest stay in the caller's main workspace.
-
 ## Separate runtime tar draft
 
 `//dist:swss_pkg` is a runtime tar containing 29 C++ programs, `countersyncd`,
@@ -137,7 +130,7 @@ It installs these files under the same runtime paths described by Automake and
 `debian/swss.install`.
 
 The tar has no Debian control metadata, maintainer scripts, or dependency
-declarations. The generated DEB action does not consume this target.
+declarations.
 
 The tar contains the SWSS payload, not the shared libraries supplied by its
 runtime dependencies. The consuming image must provide the matching libraries.
