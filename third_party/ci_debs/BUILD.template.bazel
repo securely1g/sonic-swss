@@ -18,7 +18,10 @@ filegroup(
 
 cc_library(
     name = "sai_headers",
-    hdrs = glob(["packages/libsaivs-dev/usr/include/sai/*.h"], allow_empty = False),
+    hdrs = glob(
+        ["packages/libsaivs-dev/usr/include/sai/*.h"],
+        allow_empty = False,
+    ),
     includes = ["packages/libsaivs-dev/usr/include/sai"],
     target_compatible_with = COMPATIBLE_WITH,
     visibility = ["//visibility:public"],
@@ -40,7 +43,10 @@ cc_import(
 
 cc_library(
     name = "saimetadata",
-    hdrs = glob(["packages/libsaimetadata-dev/usr/include/sai/*.h"], allow_empty = False),
+    hdrs = glob(
+        ["packages/libsaimetadata-dev/usr/include/sai/*.h"],
+        allow_empty = False,
+    ),
     includes = ["packages/libsaimetadata-dev/usr/include/sai"],
     target_compatible_with = COMPATIBLE_WITH,
     visibility = ["//visibility:public"],
@@ -91,7 +97,10 @@ cc_import(
 
 cc_library(
     name = "dashapi",
-    hdrs = glob(["packages/libdashapi/usr/include/dash_api/*.h"], allow_empty = False),
+    hdrs = glob(
+        ["packages/libdashapi/usr/include/dash_api/*.h"],
+        allow_empty = False,
+    ),
     includes = ["packages/libdashapi/usr/include"],
     target_compatible_with = COMPATIBLE_WITH,
     visibility = ["//visibility:public"],
