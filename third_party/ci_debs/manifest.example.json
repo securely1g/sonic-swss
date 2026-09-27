@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "distribution": "trixie",
+  "architecture": "amd64",
+  "packages": {
+    "libdashapi": {
+      "path": "libdashapi_1.0.0_amd64.deb",
+      "sha256": "93c02c0394b3e20660e9364f0442321207a4d13f776849ba71faf58e32a25d8d"
+    },
+    "libsaimetadata": {
+      "path": "libsaimetadata_1.0.0_amd64.deb",
+      "sha256": "f2945c0426a95176c2744bf4d95614b63be81bf98bef41178ba880bf199dc8c2"
+    },
+    "libsaimetadata-dev": {
+      "path": "libsaimetadata-dev_1.0.0_amd64.deb",
+      "sha256": "2e55ec78f5f37a07559dbde0e24c76f2c75ad21718996f7525773e636052ae1f"
+    },
+    "libsairedis": {
+      "path": "libsairedis_1.0.0_amd64.deb",
+      "sha256": "fd61832b921931010599992236d17c81d7fed944f67e5c1be1fa14d68727233f"
+    },
+    "libsairedis-dev": {
+      "path": "libsairedis-dev_1.0.0_amd64.deb",
+      "sha256": "148ff1b892305e1e0119b395e16aac519625439e451d3ab1863605c4a92f0c5a"
+    },
+    "libsaivs-dev": {
+      "path": "libsaivs-dev_1.0.0_amd64.deb",
+      "sha256": "2d7590b3c6ed1f2d019c6e7cb362d51380ee77a5a4f5c63f9f452463c6c4f143"
+    },
+    "libswsscommon-dev": {
+      "path": "libswsscommon-dev_1.0.0_amd64.deb",
+      "sha256": "91f50dd400a5c603842c842f1abb1987baaa2a7c0b2f5ba1323b6092c31ac6f9"
+    }
+  },
+  "provenance": {
+    "dash": {
+      "artifact": "sonic-dash-api-trixie",
+      "azure_build": 1231190,
+      "source_commit": "2ce7ce648ee77a76fcf567191eb4b9ed6cfeed38"
+    },
+    "sairedis": {
+      "artifact": "sonic-sairedis-trixie",
+      "azure_build": 1230428,
+      "source_commit": "19d25d08f8481a1ab55838e25ae5cd73b0bf30f8"
+    },
+    "swsscommon": {
+      "artifact": "sonic-swss-common-trixie",
+      "azure_build": 1229287,
+      "source_commit": "10d14ae58ae73899a52a2447d1e791a2b7bd1a34"
+    }
+  }
+}

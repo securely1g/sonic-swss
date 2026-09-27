@@ -1,0 +1,18 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["gcovpreload.cpp"])
+
+# The native coverage build compiles this shared object without coverage flags.
+cc_binary(
+    name = "libgcovpreload.so",
+    srcs = ["gcovpreload.cpp"],
+    copts = ["-fPIC"],
+    linkshared = True,
+)
+
+cc_import(
+    name = "gcovpreload_shared",
+    shared_library = ":libgcovpreload.so",
+)

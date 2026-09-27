@@ -1,0 +1,130 @@
+load("//bazel:production_sources.bzl", "SWSS_PROGRAMS")
+load("//tools/bazel:cc.bzl", "swss_cc_binary", "swss_cc_library")
+load("//tools/bazel:deps.bzl", "CFGMGR_DEPS")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(glob([
+    "*.cpp",
+    "*.h",
+    "*.lua",
+]))
+
+swss_cc_library(
+    name = "headers",
+    hdrs = glob(["*.h"]),
+    asan = False,
+    includes = ["."],
+)
+
+filegroup(
+    name = "lua_files",
+    srcs = [
+        "buffer_check_headroom_barefoot.lua",
+        "buffer_check_headroom_mellanox.lua",
+        "buffer_check_headroom_vs.lua",
+        "buffer_headroom_barefoot.lua",
+        "buffer_headroom_mellanox.lua",
+        "buffer_headroom_vs.lua",
+        "buffer_pool_barefoot.lua",
+        "buffer_pool_mellanox.lua",
+        "buffer_pool_vs.lua",
+    ],
+)
+
+CFGMGR_HEADERS = [
+    ":headers",
+    "//lib:headers",
+    "//orchagent:headers",
+    "//warmrestart:headers",
+]
+
+swss_cc_binary(
+    name = "vlanmgrd",
+    srcs = SWSS_PROGRAMS["vlanmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "teammgrd",
+    srcs = SWSS_PROGRAMS["teammgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "portmgrd",
+    srcs = SWSS_PROGRAMS["portmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "intfmgrd",
+    srcs = SWSS_PROGRAMS["intfmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "buffermgrd",
+    srcs = SWSS_PROGRAMS["buffermgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "vrfmgrd",
+    srcs = SWSS_PROGRAMS["vrfmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "nbrmgrd",
+    srcs = SWSS_PROGRAMS["nbrmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "vxlanmgrd",
+    srcs = SWSS_PROGRAMS["vxlanmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "sflowmgrd",
+    srcs = SWSS_PROGRAMS["sflowmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "natmgrd",
+    srcs = SWSS_PROGRAMS["natmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "coppmgrd",
+    srcs = SWSS_PROGRAMS["coppmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "tunnelmgrd",
+    srcs = SWSS_PROGRAMS["tunnelmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "macsecmgrd",
+    srcs = SWSS_PROGRAMS["macsecmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "fabricmgrd",
+    srcs = SWSS_PROGRAMS["fabricmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)
+
+swss_cc_binary(
+    name = "stpmgrd",
+    srcs = SWSS_PROGRAMS["stpmgrd"]["sources"],
+    deps = CFGMGR_DEPS + CFGMGR_HEADERS,
+)

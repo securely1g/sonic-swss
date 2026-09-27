@@ -1,0 +1,99 @@
+load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
+
+package(default_visibility = ["//visibility:private"])
+
+exports_files(["IMPORTS.json"])
+
+COMPATIBLE_WITH = [
+    "@platforms//cpu:{CPU}",
+    "@platforms//os:linux",
+]
+
+filegroup(
+    name = "cfg_schema",
+    srcs = ["cfg_schema.h"],
+    target_compatible_with = COMPATIBLE_WITH,
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "sai_headers",
+    hdrs = glob(["packages/libsaivs-dev/usr/include/sai/*.h"], allow_empty = False),
+    includes = ["packages/libsaivs-dev/usr/include/sai"],
+    target_compatible_with = COMPATIBLE_WITH,
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "sairedis_headers",
+    hdrs = ["packages/libsairedis-dev/usr/include/sai/sairedis.h"],
+    includes = ["packages/libsairedis-dev/usr/include/sai"],
+    target_compatible_with = COMPATIBLE_WITH,
+    deps = [":sai_headers"],
+)
+
+cc_import(
+    name = "_saimetadata_dso",
+    shared_library = "packages/libsaimetadata/usr/lib/{MULTIARCH}/libsaimetadata.so.0",
+    target_compatible_with = COMPATIBLE_WITH,
+)
+
+cc_library(
+    name = "saimetadata",
+    hdrs = glob(["packages/libsaimetadata-dev/usr/include/sai/*.h"], allow_empty = False),
+    includes = ["packages/libsaimetadata-dev/usr/include/sai"],
+    target_compatible_with = COMPATIBLE_WITH,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":_saimetadata_dso",
+        ":sai_headers",
+        ":sairedis_headers",
+    ],
+)
+
+cc_import(
+    name = "_saimeta_dso",
+    shared_library = "packages/libsaimetadata/usr/lib/{MULTIARCH}/libsaimeta.so.0",
+    target_compatible_with = COMPATIBLE_WITH,
+)
+
+cc_library(
+    name = "saimeta",
+    target_compatible_with = COMPATIBLE_WITH,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":_saimeta_dso",
+        ":saimetadata",
+    ],
+)
+
+cc_import(
+    name = "_sairedis_dso",
+    shared_library = "packages/libsairedis/usr/lib/{MULTIARCH}/libsairedis.so.0",
+    target_compatible_with = COMPATIBLE_WITH,
+)
+
+cc_library(
+    name = "sairedis",
+    target_compatible_with = COMPATIBLE_WITH,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":_sairedis_dso",
+        ":sairedis_headers",
+    ],
+)
+
+cc_import(
+    name = "_dashapi_dso",
+    shared_library = "packages/libdashapi/usr/lib/libdashapi.so",
+    target_compatible_with = COMPATIBLE_WITH,
+)
+
+cc_library(
+    name = "dashapi",
+    hdrs = glob(["packages/libdashapi/usr/include/dash_api/*.h"], allow_empty = False),
+    includes = ["packages/libdashapi/usr/include"],
+    target_compatible_with = COMPATIBLE_WITH,
+    visibility = ["//visibility:public"],
+    deps = [":_dashapi_dso"],
+)
