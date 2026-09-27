@@ -16,7 +16,6 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shlex
-import shutil
 import stat
 import subprocess
 import tarfile
@@ -32,7 +31,7 @@ HEADER_SUFFIXES = {".h", ".hh", ".hpp", ".hxx", ".inc"}
 CXX_SUFFIXES = {".cc", ".cpp", ".cxx", ".C"}
 IGNORED_DIRECTORIES = {".git", ".deps", ".libs", "target", "autom4te.cache", "__pycache__"}
 PRIMARY = re.compile(r"^((?:(?:dist|nodist|nobase)_)*)([A-Za-z][A-Za-z0-9_]*)_(PROGRAMS|DATA|SCRIPTS|HEADERS|LIBRARIES|LTLIBRARIES)$")
-RESERVED_TARGETS = {"headers", "countersyncd", "debian_packages", "swss_deb", "swss_dbg_deb", "swss_package_manifest"}
+RESERVED_TARGETS = {"headers", "countersyncd"}
 
 
 def relative_path(value: str) -> PurePosixPath:
@@ -47,7 +46,7 @@ def file_mode(path: Path) -> int:
 
 
 def package_mode(install_path: str, mode: int) -> int:
-    # dh_fixperms makes files in these directories executable.
+    # Files installed in executable directories must remain executable.
     executable_directories = ("bin/", "sbin/", "usr/bin/", "usr/sbin/", "usr/games/", "etc/init.d/")
     return 0o755 if install_path.startswith(executable_directories) else mode
 
@@ -132,20 +131,15 @@ def value(variables: dict[str, tuple[str, str]], name: str, fallback: str | None
 
 
 class Generator:
-    def __init__(self, source: Path, configured: Path, package: str, vendor: Path, vendor_config: Path, binary_label_prefix: str | None = None):
+    def __init__(self, source: Path, configured: Path, package: str, vendor: Path, vendor_config: Path):
         self.source = source.resolve()
         self.configured = configured.resolve()
         self.vendor = vendor.resolve()
         self.vendor_config = vendor_config.resolve()
         self.package = relative_path(package).as_posix()
-        if binary_label_prefix is not None and not re.fullmatch(r"(?:@[A-Za-z0-9_.+-]+)?", binary_label_prefix):
-            raise ValueError(f"invalid binary label prefix: {binary_label_prefix}")
-        self.binary_label_prefix = binary_label_prefix
         self.inputs: dict[str, Path] = {}
         self.programs: list[dict[str, Any]] = []
         self.automake_install: list[dict[str, Any]] = []
-        self.debhelper_install: list[dict[str, Any]] = []
-        self.package_sources: set[str] = set()
         self.cargo_sources: set[str] = set()
         self.headers: set[str] = set()
         self.subdirectories: list[str] = []
@@ -304,7 +298,7 @@ class Generator:
             if value(variables, "BUILT_SOURCES"):
                 raise ValueError(f"generated sources need explicit Bazel targets: {build_directory}")
             if "-fprofile-arcs" in value(variables, "CFLAGS_COMMON"):
-                raise ValueError("GCOV packaging is not supported by the Bazel release package path")
+                raise ValueError("GCOV is not supported by the generated Bazel release targets")
             self.subdirectories.append(directory)
             if value(variables, "CXX"):
                 self.compilers.add(value(variables, "CXX"))
@@ -334,7 +328,6 @@ class Generator:
                         self.read_program(token, directory, install_directory, variables)
                     else:
                         relative = self.resolve_source(token, directory)
-                        self.package_sources.add(relative)
                         install_path = self.installed_path(install_directory, token, "nobase_" in modifiers)
                         self.automake_install.append(
                             {
@@ -405,79 +398,26 @@ class Generator:
         self.vendor_archive = output.getvalue()
         self.cargo_sources.add(VENDOR_ARCHIVE)
 
-    def read_debian(self) -> None:
-        ignored_names = {"files", "debhelper-build-stamp", "autoreconf.before", "autoreconf.after"}
-        ignored_suffixes = (".substvars", ".debhelper.log")
-        for path in walk_files(self.source / "debian"):
-            relative = path.relative_to(self.source).as_posix()
-            parts = Path(relative).parts
-            if len(parts) > 1 and parts[1] in {".debhelper", "swss", "swss-dbg"}:
-                continue
-            if path.name in ignored_names or path.name.endswith(ignored_suffixes):
-                continue
-            self.package_sources.add(self.add_input(relative, path))
-        for required in ("debian/control", "debian/rules", "debian/changelog", "debian/compat", "debian/swss.install", "bazel/package_deb.py"):
-            self.package_sources.add(self.add_input(required, self.source / required))
-        for install_file in sorted((self.source / "debian").glob("*.install")):
-            for line_number, line in enumerate(install_file.read_text().splitlines(), 1):
-                if not line.strip() or line.lstrip().startswith("#"):
-                    continue
-                fields = shlex.split(line)
-                if install_file.name != "swss.install" or len(fields) != 2 or any(character in line for character in "*?[]"):
-                    raise ValueError(f"unsupported dh_install entry: {install_file}:{line_number}")
-                source = relative_path(fields[0]).as_posix()
-                destination = relative_path(fields[1]) / PurePosixPath(source).name
-                cargo = source == "target/release/countersyncd"
-                if cargo:
-                    mode = 0o755
-                else:
-                    self.package_sources.add(self.add_input(source, self.source / source))
-                    mode = file_mode(self.source / source)
-                self.debhelper_install.append(
-                    {"source": source, "install_path": destination.as_posix(), "mode": package_mode(destination.as_posix(), mode), "kind": "cargo" if cargo else "data"}
-                )
-        cargo_entries = [entry for entry in self.debhelper_install if entry["kind"] == "cargo"]
-        if len(cargo_entries) != 1:
-            raise ValueError("debian/swss.install must install exactly one target/release/countersyncd")
-
-    def inventory(self, architecture: str, version: str, epoch: int, deb_build_options: str = "") -> dict[str, Any]:
+    def inventory(self, epoch: int) -> dict[str, Any]:
         installed = [program["install_path"] for program in self.programs]
-        installed += [entry["install_path"] for entry in self.automake_install + self.debhelper_install]
+        installed += [entry["install_path"] for entry in self.automake_install]
         if len(installed) != len(set(installed)):
-            raise ValueError("configured package has duplicate install paths")
-        filename_version = version.split(":", 1)[-1]
-        if not re.fullmatch(r"[A-Za-z0-9.+~_-]+", filename_version) or not re.fullmatch(r"[a-z0-9-]+", architecture):
-            raise ValueError("invalid Debian version or architecture for generated output names")
-        packages = [
-            {
-                "name": name,
-                "version": version,
-                "architecture": architecture,
-                "filename": f"{name}_{filename_version}_{architecture}.deb",
-                "label": f"//{self.package}:" + ("swss_deb" if name == "swss" else "swss_dbg_deb"),
-            }
-            for name in ("swss", "swss-dbg")
-        ]
+            raise ValueError("configured build has duplicate install paths")
         return {
             "schema_version": 1,
             "configured_subdirectories": self.subdirectories,
             "configured_cxx": sorted(self.compilers),
             "programs": sorted(self.programs, key=lambda item: item["name"]),
             "automake_install": sorted(self.automake_install, key=lambda item: item["install_path"]),
-            "debhelper_install": sorted(self.debhelper_install, key=lambda item: item["install_path"]),
-            "package_source_files": sorted(self.package_sources),
             "cargo": {
                 "label": f"//{self.package}:countersyncd",
-                "package_source": "target/release/countersyncd",
                 "locked": True,
                 "offline": True,
                 "vendor_archive": VENDOR_ARCHIVE,
                 "vendor_files": self.vendor_file_count,
                 "vendor_sha256": hashlib.sha256(self.vendor_archive).hexdigest(),
             },
-            "packages": packages,
             "source_date_epoch": epoch,
-            "deb_build_options": deb_build_options,
         }
 
     def module_sources(self, inventory: dict[str, Any]) -> str:
@@ -504,12 +444,6 @@ class Generator:
         ]
         return "\n".join(lines)
 
-    def binary_label(self, program: dict[str, Any]) -> str:
-        if self.binary_label_prefix is None:
-            return ":" + program["name"]
-        directory = "" if program["directory"] == "." else program["directory"]
-        return self.binary_label_prefix + "//" + directory + ":" + program["name"]
-
     def build_file(self, inventory: dict[str, Any]) -> str:
         def assignment(name: str, item: Any) -> list[str]:
             rendered = (["True" if item else "False"] if isinstance(item, bool) else json.dumps(item, indent=4, sort_keys=True).splitlines())
@@ -527,26 +461,25 @@ class Generator:
         lines = [
             '# Generated by sonic-swss/bazel/generate.py. Do not edit.',
             'load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")',
-            'load(":defs.bzl", "swss_cargo_binary", "swss_debian_packages")',
+            'load(":defs.bzl", "swss_cargo_binary")',
             "",
             'package(default_visibility = ["//visibility:public"])',
-            'exports_files(["inventory.json", "production_sources.bzl", "tools/build_cargo.py", "tools/package_deb.py"])',
+            'exports_files(["inventory.json", "production_sources.bzl", "tools/build_cargo.py"])',
             "",
         ]
-        if self.binary_label_prefix is None:
-            lines += rule("cc_library", {"name": "headers", "hdrs": ["src/" + name for name in sorted(self.headers)]})
-            for program in inventory["programs"]:
-                lines += rule(
-                    "cc_binary",
-                    {
-                        "name": program["name"],
-                        "srcs": ["src/" + name for name in program["sources"]],
-                        "copts": program["compile_options"],
-                        "linkopts": program["link_options"],
-                        "deps": [":headers"],
-                        "linkstatic": False,
-                    },
-                )
+        lines += rule("cc_library", {"name": "headers", "hdrs": ["src/" + name for name in sorted(self.headers)]})
+        for program in inventory["programs"]:
+            lines += rule(
+                "cc_binary",
+                {
+                    "name": program["name"],
+                    "srcs": ["src/" + name for name in program["sources"]],
+                    "copts": program["compile_options"],
+                    "linkopts": program["link_options"],
+                    "deps": [":headers"],
+                    "linkstatic": False,
+                },
+            )
         lines += rule(
             "swss_cargo_binary",
             {
@@ -556,41 +489,20 @@ class Generator:
                 "source_date_epoch": str(inventory["source_date_epoch"]),
             },
         )
-        lines += rule(
-            "swss_debian_packages",
-            {
-                "name": "debian_packages",
-                "binaries": {self.binary_label(program): program["install_path"] for program in inventory["programs"]},
-                "cargo": ":countersyncd",
-                "srcs": ["src/" + name for name in inventory["package_source_files"]],
-                "inventory": "inventory.json",
-                "source_root": self.package + "/src",
-                "swss_out": inventory["packages"][0]["filename"],
-                "debug_out": inventory["packages"][1]["filename"],
-                "manifest_out": "swss-package-manifest.json",
-            },
-        )
-        for name, filename in (
-            ("swss_deb", inventory["packages"][0]["filename"]),
-            ("swss_dbg_deb", inventory["packages"][1]["filename"]),
-            ("swss_package_manifest", "swss-package-manifest.json"),
-        ):
-            lines += rule("filegroup", {"name": name, "srcs": [filename]})
         return "\n".join(lines)
 
-    def render(self, architecture: str, version: str, epoch: int, deb_build_options: str = "") -> dict[str, tuple[bytes, int]]:
+    def render(self, epoch: int) -> dict[str, tuple[bytes, int]]:
         self.read_make_tree()
         self.read_headers_and_cargo()
         self.read_vendor()
-        self.read_debian()
-        inventory = self.inventory(architecture, version, epoch, deb_build_options)
+        inventory = self.inventory(epoch)
         rendered = {
             "src/" + name: (path.read_bytes(), file_mode(path))
             for name, path in sorted(self.inputs.items())
         }
         rendered["src/" + VENDOR_ARCHIVE] = (self.vendor_archive, 0o644)
         rendered["src/.cargo/config.toml"] = (self.cargo_config, 0o644)
-        for name in ("defs.bzl", "build_cargo.py", "package_deb.py"):
+        for name in ("defs.bzl", "build_cargo.py"):
             path = self.source / "bazel" / name
             if not path.is_file():
                 raise ValueError(f"missing Bazel support input: {path}")
@@ -650,10 +562,7 @@ def main() -> None:
     parser.add_argument("--cargo-vendor", required=True, type=Path)
     parser.add_argument("--cargo-vendor-config", required=True, type=Path)
     parser.add_argument("--workspace-package", default="swss")
-    parser.add_argument("--binary-label-prefix", help="use module binaries from this repository prefix, for example @sonic_swss")
-    parser.add_argument("--architecture")
     parser.add_argument("--source-date-epoch", type=int)
-    parser.add_argument("--deb-build-options", default="")
     args = parser.parse_args()
     source = args.source.resolve()
     configured = args.configured_build.resolve()
@@ -665,17 +574,15 @@ def main() -> None:
         raise ValueError("Cargo vendor directory must be outside the source and configured input trees")
     if args.cargo_vendor_config.resolve().is_relative_to(output.resolve()):
         raise ValueError("Cargo vendor configuration must be outside the generated output package")
-    architecture = args.architecture or subprocess.check_output(["dpkg-architecture", "-qDEB_HOST_ARCH"], text=True).strip()
     changelog = str(source / "debian/changelog")
-    version = subprocess.check_output(["dpkg-parsechangelog", "-l", changelog, "-S", "Version"], text=True).strip()
     epoch = args.source_date_epoch
     if epoch is None:
         epoch = int(subprocess.check_output(["dpkg-parsechangelog", "-l", changelog, "-S", "Timestamp"], text=True).strip())
     if epoch < 0:
         raise ValueError("source date epoch must be non-negative")
-    generator = Generator(source, configured, args.workspace_package, args.cargo_vendor, args.cargo_vendor_config, args.binary_label_prefix)
-    synchronize(output, generator.render(architecture, version, epoch, args.deb_build_options))
-    print(f"Generated //{generator.package}:swss_deb and //{generator.package}:swss_dbg_deb from {len(generator.programs)} configured programs")
+    generator = Generator(source, configured, args.workspace_package, args.cargo_vendor, args.cargo_vendor_config)
+    synchronize(output, generator.render(epoch))
+    print(f"Generated {len(generator.programs)} C++ targets, //{generator.package}:countersyncd, and production_sources.bzl")
 
 
 if __name__ == "__main__":

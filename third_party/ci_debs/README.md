@@ -50,13 +50,12 @@ When SWSS is the root module, the first flag is
 `--//tools/bazel:ci_debs=True`; the other two flags are unchanged.
 `--repo_env=SONIC_SWSS_CI_DEBS_MANIFEST=...` supplies the manifest and files to
 the repository rule. It does not select the provider. See the
-[canonical external caller guide](../../bazel/README.md#build-debs-from-an-external-module-caller)
+[canonical external caller guide](../../bazel/README.md#build-c-targets-from-an-external-module-caller)
 for the complete module and Bazel configuration.
 
 These imports provide C++ headers and shared libraries to Bazel actions. They
 do not install packages into the prepared build environment. The locked Cargo
-action uses that environment's installed inputs, and `dpkg-shlibdeps` uses its
-installed libraries and Debian package metadata. Keep those inputs in the
+action uses that environment's installed inputs. Keep those inputs in the
 prepared environment and its action environment digest.
 
 ## Manifest

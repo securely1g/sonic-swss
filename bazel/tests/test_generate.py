@@ -34,7 +34,7 @@ class Fixture:
             '[source.crates-io]\nreplace-with = "vendored-sources"\n\n'
             + f'[source.vendored-sources]\ndirectory = "{self.vendor}"\n'
         )
-        for name in ("defs.bzl", "build_cargo.py", "package_deb.py"):
+        for name in ("defs.bzl", "build_cargo.py"):
             shutil.copyfile(BAZEL_DIRECTORY / name, self.source / "bazel" / name)
         files = {
             "app/main.cpp": '#include "config.h"\n#include "app/common.h"\nint main() { return answer(); }\n',
@@ -47,13 +47,6 @@ class Fixture:
             "Cargo.lock": 'version = 3\n\n[[package]]\nname = "countersyncd"\nversion = "0.1.0"\n',
             "crates/countersyncd/Cargo.toml": '[package]\nname = "countersyncd"\nversion = "0.1.0"\nedition = "2021"\n',
             "crates/countersyncd/src/main.rs": "fn main() {}\n",
-            "debian/control": "Source: sonic\n\nPackage: swss\nArchitecture: any\n\nPackage: swss-dbg\nArchitecture: any\n",
-            "debian/rules": "#!/usr/bin/make -f\n%:\n\t@true\n",
-            "debian/changelog": "sonic (1.0.0) stable; urgency=medium\n\n  * Fixture.\n\n -- SONiC <sonic@example.invalid>  Wed, 09 Mar 2016 12:00:00 -0800\n",
-            "debian/compat": "10\n",
-            "debian/swss.install": "config.json etc/swss\nhelper.py usr/bin\ntarget/release/countersyncd usr/bin\n",
-            "config.json": "{}\n",
-            "helper.py": "#!/usr/bin/python3\n",
         }
         for name, contents in files.items():
             path = self.source / name
@@ -91,8 +84,8 @@ class Fixture:
             common + "bindir = /usr/bin\nbin_PROGRAMS = team\nteam_SOURCES = main.cpp\nteam_OBJECTS = team-main.o\n"
         )
 
-    def render(self, deb_build_options: str = "") -> dict[str, tuple[bytes, int]]:
-        return generate.Generator(self.source, self.configured, "swss", self.vendor, self.vendor_config).render("amd64", "1.0.0", 1457553600, deb_build_options)
+    def render(self) -> dict[str, tuple[bytes, int]]:
+        return generate.Generator(self.source, self.configured, "swss", self.vendor, self.vendor_config).render(1457553600)
 
 
 class GeneratorTest(unittest.TestCase):
@@ -103,8 +96,8 @@ class GeneratorTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def test_configured_selection_flags_and_package_boundary(self) -> None:
-        rendered = self.fixture.render("hardening=+all nocheck")
+    def test_configured_selection_flags_and_install_inventory(self) -> None:
+        rendered = self.fixture.render()
         inventory = json.loads(rendered["inventory.json"][0])
         self.assertEqual([item["name"] for item in inventory["programs"]], ["example", "team"])
         example = inventory["programs"][0]
@@ -114,14 +107,10 @@ class GeneratorTest(unittest.TestCase):
         self.assertIn("-DGLOBAL", example["compile_options"])
         self.assertIn("-ffile-prefix-map=swss/src=.", example["compile_options"])
         self.assertEqual(example["link_options"][-2:], ["-lm", "-lm"])
-        self.assertNotIn("app/main.cpp", inventory["package_source_files"])
         self.assertEqual(inventory["automake_install"][0]["install_path"], "usr/share/swss/data.lua")
-        helper = next(item for item in inventory["debhelper_install"] if item["source"] == "helper.py")
-        self.assertEqual(helper["mode"], 0o755)
         self.assertNotIn(str(self.fixture.source).encode(), rendered["BUILD.bazel"][0])
         self.assertNotIn(str(self.fixture.configured).encode(), rendered["inventory.json"][0])
         self.assertTrue(inventory["cargo"]["offline"])
-        self.assertEqual(inventory["deb_build_options"], "hardening=+all nocheck")
         self.assertIn(b'directory = "vendor"', rendered["src/.cargo/config.toml"][0])
 
     def test_vendor_bytes_are_deterministic_declared_inputs(self) -> None:
@@ -138,27 +127,13 @@ class GeneratorTest(unittest.TestCase):
         changed = self.fixture.render()
         self.assertNotEqual(first[archive][0], changed[archive][0])
 
-    def test_module_sources_and_external_binary_labels_preserve_packaging(self) -> None:
-        generator = generate.Generator(
-            self.fixture.source,
-            self.fixture.configured,
-            "swss",
-            self.fixture.vendor,
-            self.fixture.vendor_config,
-            "@sonic_swss",
-        )
-        rendered = generator.render("amd64", "1.0.0", 1457553600)
+    def test_module_sources_preserve_configured_inventory(self) -> None:
+        rendered = self.fixture.render()
         sources = rendered["production_sources.bzl"][0].decode()
-        build = rendered["BUILD.bazel"][0].decode()
         self.assertIn('"//app:main.cpp"', sources)
         self.assertIn('"//app:feature.cpp"', sources)
         self.assertIn('"install_path": "usr/bin/example"', sources)
         self.assertIn('"source": "app/data.lua"', sources)
-        self.assertNotIn("cc_binary(", build)
-        self.assertIn('"@sonic_swss//app:example": "usr/bin/example"', build)
-        self.assertIn('"@sonic_swss//team:team": "usr/bin/team"', build)
-        self.assertIn("swss_cargo_binary(", build)
-        self.assertIn("swss_debian_packages(", build)
 
     def test_synchronization_preserves_unchanged_files_and_removes_stale_inputs(self) -> None:
         rendered = self.fixture.render()
