@@ -46,22 +46,6 @@ config_setting(
     values = {"compilation_mode": "opt"},
 )
 
-[
-    config_setting(
-        name = "release_" + cpu,
-        constraint_values = ["@platforms//cpu:" + cpu],
-        flag_values = {
-            ":asan": "False",
-            ":gcov": "False",
-        },
-        values = {"compilation_mode": "opt"},
-    )
-    for cpu in [
-        "x86_64",
-        "arm64",
-    ]
-]
-
 native_binary(
     name = "clang",
     src = "@llvm_toolchain_llvm//:bin/clang",

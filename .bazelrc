@@ -1,9 +1,9 @@
 common --check_direct_dependencies=off
 common --noincompatible_disallow_empty_glob
 
-# Select merged libnl3, then retain the pending overlay modules from the
-# immutable combined registry until their individual releases are adopted.
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/238be20f1517f9c859382f0a8d4c19183c968864
+# Select build-infra 0.0.7 and merged libnl3, then retain Distroless and Common
+# from the immutable combined registry until their individual releases are adopted.
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/2f4012b01f7a73f24b12de64a0a9ae86a06b0e89
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce
 common --registry=https://bcr.bazel.build/
 
@@ -24,9 +24,8 @@ common:ci-debs --//tools/bazel:ci_debs=True
 common:ci-debs --@sonic_swss_common//tools/bazel:cfg_schema=@sonic_ci_debs//:cfg_schema
 common:ci-debs --@sonic_swss_common//tools/bazel:yang_modules=True
 
-# The current GCC toolchain does not add optimization flags for opt mode.
+# The managed GCC toolchain supplies optimization and baseline hardening.
 build:release --compilation_mode=opt
-build:release --copt=-O2
 
 build:asan --//tools/bazel:asan=True
 build:gcov --//tools/bazel:gcov=True

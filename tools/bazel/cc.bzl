@@ -12,7 +12,6 @@ load(
     "GCOV_COPTS",
     "GCOV_LINKOPTS",
     "RELEASE_HARDENING_COPTS",
-    "RELEASE_HARDENING_LINKOPTS",
 )
 
 def _cxxopts(cxxopts, ndebug, asan):
@@ -50,13 +49,6 @@ def swss_cc_binary(name, srcs = [], deps = [], cxxopts = [], linkopts = [], ndeb
     if gcov_preload not in ["static", "shared", "none"]:
         fail("gcov_preload must be static, shared, or none")
 
-    # Match Debian GCC's unused-library filtering for the normal package build.
-    # The toolchain feature places the flag before dependency libraries.
-    binary_features = kwargs.pop("features", []) + select({
-        "//tools/bazel:release_link": ["as_needed"],
-        "//conditions:default": [],
-    })
-
     if asan:
         srcs = srcs + select({
             "//tools/bazel:asan_enabled": [
@@ -82,8 +74,7 @@ def swss_cc_binary(name, srcs = [], deps = [], cxxopts = [], linkopts = [], ndeb
         srcs = srcs,
         deps = deps,
         cxxopts = _cxxopts(cxxopts, ndebug, asan) + RELEASE_HARDENING_COPTS,
-        features = binary_features,
-        linkopts = _linkopts(linkopts, asan) + RELEASE_HARDENING_LINKOPTS,
+        linkopts = _linkopts(linkopts, asan),
         **kwargs
     )
 

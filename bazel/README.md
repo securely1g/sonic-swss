@@ -142,7 +142,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.4-83b4e9d963f7f268d06983a8c954fc5d6d93ce2b.sonic.1",
+    version = "0.0.7-91fe8246519f99838da936eee54e85208c704a4d",
     repo_name = "sonic_build_infra",
 )
 
@@ -176,7 +176,7 @@ Put `8.5.1` in the caller's `.bazelversion` and add these settings to its
 `.bazelrc`:
 
 ```text
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/238be20f1517f9c859382f0a8d4c19183c968864
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/2f4012b01f7a73f24b12de64a0a9ae86a06b0e89
 common --registry=file:///registry
 common --registry=https://bcr.bazel.build/
 common --lockfile_mode=off
@@ -188,20 +188,25 @@ common:ci-debs --@sonic_swss_common//tools/bazel:cfg_schema=@sonic_ci_debs//:cfg
 common:ci-debs --@sonic_swss_common//tools/bazel:yang_modules=True
 
 build:release --compilation_mode=opt
-build:release --copt=-O2
 ```
 
-The first registry selects the merged `libnl3 3.7.0-sonic.2` release.
+The first registry selects `sonic-build-infra
+0.0.7-91fe8246519f99838da936eee54e85208c704a4d` and the merged
+`libnl3 3.7.0-sonic.2` release.
 `/registry` is an example mount path for the combined
 `securely1g/sonic-bazel-registry` checkout at commit
 `97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce`, retained by branch
 `archive/pr-1-before-module-split-20260928`. Mount that checkout at `/registry`
-for the pending Distroless, build-infra, and Common module releases. Use its
+for the pending Distroless and Common module releases. Use its
 visible absolute path in the `file://` URL when your mount differs, or replace
 that URL with the immutable raw GitHub registry URL from the SWSS `.bazelrc`.
 BCR remains the final fallback. The root libnl3 override prevents historical
 dotted versions requested by dependencies from winning version resolution.
-Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2` is selected.
+Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2` and
+`sonic-build-infra@0.0.7-91fe8246519f99838da936eee54e85208c704a4d` are selected.
+The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
+RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
+`-Wdate-time` and `_FORTIFY_SOURCE=3` override.
 The caller disables lockfile use for this local registry iteration. The pinned
 Common entry fetches revision `99572f5a34e7f408dee49eaf2a3ba60c5d443fb6` from
 `securely1g/sonic-swss-common`. Its source already owns the Bazel build; the

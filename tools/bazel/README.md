@@ -20,8 +20,9 @@ For an external module caller, use the
 - `bazel/generate.py` reads the configured Automake build and emits
   `production_sources.bzl` plus generated C++ and Cargo targets. The module
   loads a copy of that source map from `bazel/production_sources.bzl`.
-- `tools/bazel/cc.bzl` applies the common SWSS compiler options, normal Trixie
-  release hardening, and the native ASAN and GCOV source selections.
+- `tools/bazel/cc.bzl` applies the common SWSS compiler options, release-specific
+  fortification, and the native ASAN and GCOV source selections. The managed
+  GCC toolchain supplies optimization and baseline hardening.
 - `tools/bazel/deps.bzl` groups dependency labels by component.
 - `dist/BUILD.bazel` contains a separate runtime tar draft.
 
@@ -68,11 +69,12 @@ Common's existing YANG C++ sources.
 
 ## Build commands
 
-These standalone commands select `libnl3 3.7.0-sonic.2` from the merged
-`securely1g/sonic-bazel-registry` commit
-`238be20f1517f9c859382f0a8d4c19183c968864`. The immutable combined registry
+These standalone commands select `sonic-build-infra
+0.0.7-91fe8246519f99838da936eee54e85208c704a4d` and the merged
+`libnl3 3.7.0-sonic.2` release from `securely1g/sonic-bazel-registry` commit
+`2f4012b01f7a73f24b12de64a0a9ae86a06b0e89`. The immutable combined registry
 `97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce` remains the fallback for pending
-Distroless, build-infra, and Common module releases, followed by BCR.
+Distroless and Common module releases, followed by BCR.
 `MODULE.bazel` overrides libnl3's version because historical dotted version
 requests from dependencies would otherwise outrank the new release. External
 root callers must repeat that override, as shown in the canonical caller guide.
@@ -117,13 +119,17 @@ same configuration and `--output=files` to print an artifact's output path.
 
 | Configuration | Effect |
 | --- | --- |
-| `--config=release` | Selects Bazel `opt` mode, adds `-O2` for C/C++, and preserves the normal Trixie release hardening flags. The selected GCC toolchain does not currently add optimization for `opt` itself. |
-| `--config=debug` | Selects Bazel `dbg` mode and the SWSS debug definitions. |
+| `--config=release` | Selects Bazel `opt` mode and adds SWSS release-specific `-Wdate-time` and `_FORTIFY_SOURCE=3`. The managed GCC toolchain supplies `-O2`, stack and architecture hardening, RELRO, immediate binding, and early `--as-needed`. |
+| `--config=debug` | Selects Bazel `dbg` mode and the SWSS debug definitions, and preserves unoptimized debugging with `-O0` and fortification disabled. |
 | `--config=asan` | Enables the existing SWSS C++ AddressSanitizer flags and startup sources. |
 | `--config=gcov` | Enables SWSS C++ coverage instrumentation and `-O0`. |
 
-ASAN and GCOV can be combined with `release`; GCOV's per-target `-O0` takes
-precedence for SWSS C++ compilation. These flags do not instrument Rust,
+The managed GCC optimization and baseline hardening apply in every mode;
+SWSS debug targets explicitly override optimization and fortification.
+ASAN and GCOV can be combined with `release`; both disable fortification for
+their SWSS targets, and GCOV's per-target `-O0` overrides the toolchain's `-O2`.
+The shared GCOV preload library is explicitly retained for its startup
+constructor even with `--as-needed`. These flags do not instrument Rust,
 matching the native build's separate Cargo invocation.
 
 ## CI validation
