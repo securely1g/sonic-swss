@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -134,6 +136,31 @@ class GeneratorTest(unittest.TestCase):
         self.assertIn('"//app:feature.cpp"', sources)
         self.assertIn('"install_path": "usr/bin/example"', sources)
         self.assertIn('"source": "app/data.lua"', sources)
+
+    def test_check_production_sources_without_cargo_or_package(self) -> None:
+        expected = self.fixture.render()["production_sources.bzl"][0]
+        checked_in = self.fixture.source / "bazel/production_sources.bzl"
+        checked_in.write_bytes(expected)
+        shutil.rmtree(self.fixture.vendor)
+        self.fixture.vendor_config.unlink()
+        command = [
+            sys.executable,
+            str(BAZEL_DIRECTORY / "generate.py"),
+            "--source", str(self.fixture.source),
+            "--configured-build", str(self.fixture.configured),
+            "--check-production-sources", str(checked_in),
+        ]
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.fixture.output.exists())
+
+        makefile = self.fixture.configured / "app/Makefile"
+        makefile.write_text(makefile.read_text().replace("main.cpp base.cpp common.h", "base.cpp main.cpp common.h"))
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("does not match configured Automake production sources", result.stderr)
+        self.assertEqual(checked_in.read_bytes(), expected)
+        self.assertFalse(self.fixture.output.exists())
 
     def test_synchronization_preserves_unchanged_files_and_removes_stale_inputs(self) -> None:
         rendered = self.fixture.render()

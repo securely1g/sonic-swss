@@ -2,8 +2,33 @@
 
 This prototype exposes the SONiC package payloads that the existing SWSS CI
 selects before its native build. It requires a local manifest with exact
-SHA-256 values. The repository rule reads no default manifest and downloads no
-remote artifacts.
+SHA-256 values. `prepare.py` downloads one of the pinned input sets described
+below. The repository rule reads no default manifest and downloads no remote
+artifacts.
+
+## Prepare pinned inputs
+
+Run the preparation helper from the SWSS checkout:
+
+```sh
+python3 third_party/ci_debs/prepare.py \
+  --architecture amd64 \
+  --output-directory /absolute/path/to/swss-ci-debs
+```
+
+Use `--architecture arm64` for the native ARM64 build. This selects the inputs;
+an ARM64 build with SWSS as the root module also uses `--config=aarch64`.
+The helper writes `manifest.json` and the seven declared DEB basenames into the
+output directory.
+It hashes an existing DEB before reusing it. For missing or mismatched DEBs, it
+downloads each needed ZIP once, reads only the exact listed members, verifies
+each package SHA-256, and atomically replaces the corresponding output file.
+It preserves unrelated files in the output directory. A directory, symlink, or
+other non-regular entry at a declared output path is reported as an error.
+
+The helper uses Python's verified HTTPS handling and requires no Azure token
+for these public artifacts. It does not install packages. The Bazel importer
+continues to validate package names, control metadata, and architecture.
 
 ## Select the prototype
 
@@ -60,16 +85,29 @@ prepared environment and its action environment digest.
 
 ## Manifest
 
-`manifest.example.json` records the exact Trixie amd64 packages selected by
+`manifest.amd64.json` records the exact Trixie amd64 packages selected by
 successful SWSS CI build 1231297: sairedis build 1230428, DASH build 1231190,
-and swss-common build 1229287. Place the seven listed DEBs next to a copy of
-that manifest, or replace each `path` with an absolute local path. Relative
-package paths resolve against the manifest directory. The optional `provenance`
-object is copied to the generated `IMPORTS.json` for inspection; the SHA-256
-values select package content.
+and swss-common build 1229287. `manifest.arm64.json` records the corresponding
+ARM64 artifacts from those same producer builds and source commits. Both sets
+were downloaded and their package hashes verified on 2026-09-27.
+
+These are pinned CI artifacts whose upstream retention remains an availability
+dependency. They are not durable releases. The helper uses their exact download
+URLs and does not select the latest artifact from a branch.
+
+Both manifests retain `schema_version: 1` and the same seven production package
+keys. Each package's `artifact` names an entry in `provenance`, and `member` is
+the exact ZIP member read by the helper. The provenance entries retain the
+producer build and source commit and add the artifact ID and download URL.
+`prepare.py` copies the selected manifest to the output as `manifest.json`.
+
+For manual preparation, place the seven listed DEBs next to a copy of either
+manifest, or replace each `path` with an absolute local path. Relative package
+paths resolve against the manifest directory. The importer consumes `path` and
+`sha256`; the optional `provenance` object is copied to the generated
+`IMPORTS.json` for inspection. The SHA-256 values select package content.
 
 The rule accepts one Trixie architecture per manifest: `amd64` or `arm64`.
-Only the example's amd64 artifacts have been inspected for this prototype.
 Each package's control metadata must match the manifest architecture and the
 package key. Targets carry the corresponding Linux CPU constraint.
 

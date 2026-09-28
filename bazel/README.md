@@ -106,6 +106,20 @@ cp /work/target/bazel/workspace/swss/production_sources.bzl \
 
 Source membership changes belong in Automake and are then regenerated here.
 
+Check the tracked source map against a configured tree without generating a
+package or preparing Cargo inputs:
+
+```sh
+python3 bazel/generate.py \
+  --source /work/inputs/sonic-swss \
+  --configured-build /work/inputs/sonic-swss \
+  --check-production-sources bazel/production_sources.bzl
+```
+
+The check exits with an error when the generated map differs. It reads the same
+configured Automake production inputs as full generation and leaves the tracked
+file unchanged.
+
 ## Build C++ targets from an external module caller
 
 This caller builds the SWSS module's C++ targets with the managed GCC toolchain.
