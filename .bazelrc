@@ -2,7 +2,7 @@ common --check_direct_dependencies=off
 common --noincompatible_disallow_empty_glob
 
 # Resolve the SONiC overlay modules before the Bazel Central Registry.
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/ab3d2af909a4791bdc53d3aa48005c36cb7d528a
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce
 common --registry=https://bcr.bazel.build/
 
 # sonic-buildimage supplies checkout overrides when this repository is a submodule.
