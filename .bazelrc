@@ -1,7 +1,9 @@
 common --check_direct_dependencies=off
 common --noincompatible_disallow_empty_glob
 
-# Resolve the SONiC overlay modules before the Bazel Central Registry.
+# Select merged libnl3, then retain the pending overlay modules from the
+# immutable combined registry until their individual releases are adopted.
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/238be20f1517f9c859382f0a8d4c19183c968864
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce
 common --registry=https://bcr.bazel.build/
 

@@ -68,10 +68,14 @@ Common's existing YANG C++ sources.
 
 ## Build commands
 
-These standalone commands use the immutable `securely1g/sonic-bazel-registry`
-commit `97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce` configured in `.bazelrc`.
-The canonical caller guide also shows how to use a checkout of that same
-registry revision.
+These standalone commands select `libnl3 3.7.0-sonic.2` from the merged
+`securely1g/sonic-bazel-registry` commit
+`238be20f1517f9c859382f0a8d4c19183c968864`. The immutable combined registry
+`97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce` remains the fallback for pending
+Distroless, build-infra, and Common module releases, followed by BCR.
+`MODULE.bazel` overrides libnl3's version because historical dotted version
+requests from dependencies would otherwise outrank the new release. External
+root callers must repeat that override, as shown in the canonical caller guide.
 
 Run these commands from the repository root. Replace the manifest path with a
 local path whose DEBs are visible to the build process.

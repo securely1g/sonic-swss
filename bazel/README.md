@@ -148,6 +148,12 @@ bazel_dep(
 
 local_path_override(module_name = "sonic-swss", path = "/inputs/sonic-swss")
 
+# Root overrides in imported modules do not propagate to this caller.
+single_version_override(
+    module_name = "libnl3",
+    version = "3.7.0-sonic.2",
+)
+
 gcc = use_extension("@sonic_build_infra//toolchains/gcc:extensions.bzl", "gcc")
 use_repo(gcc, "gcc_toolchains")
 register_toolchains("@gcc_toolchains//:all")
@@ -170,6 +176,7 @@ Put `8.5.1` in the caller's `.bazelversion` and add these settings to its
 `.bazelrc`:
 
 ```text
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/238be20f1517f9c859382f0a8d4c19183c968864
 common --registry=file:///registry
 common --registry=https://bcr.bazel.build/
 common --lockfile_mode=off
@@ -184,11 +191,17 @@ build:release --compilation_mode=opt
 build:release --copt=-O2
 ```
 
-`/registry` is an example mount path for the companion
-`securely1g/sonic-bazel-registry` checkout. Use branch `bazel-swss` at commit
-`97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce`, then mount that checkout at
-`/registry` in the build environment. Use its visible absolute path in the
-`file://` URL when your mount differs. BCR remains the fallback registry.
+The first registry selects the merged `libnl3 3.7.0-sonic.2` release.
+`/registry` is an example mount path for the combined
+`securely1g/sonic-bazel-registry` checkout at commit
+`97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce`, retained by branch
+`archive/pr-1-before-module-split-20260928`. Mount that checkout at `/registry`
+for the pending Distroless, build-infra, and Common module releases. Use its
+visible absolute path in the `file://` URL when your mount differs, or replace
+that URL with the immutable raw GitHub registry URL from the SWSS `.bazelrc`.
+BCR remains the final fallback. The root libnl3 override prevents historical
+dotted versions requested by dependencies from winning version resolution.
+Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2` is selected.
 The caller disables lockfile use for this local registry iteration. The pinned
 Common entry fetches revision `99572f5a34e7f408dee49eaf2a3ba60c5d443fb6` from
 `securely1g/sonic-swss-common`. Its source already owns the Bazel build; the
