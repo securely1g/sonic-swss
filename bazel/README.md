@@ -172,7 +172,7 @@ build:release --copt=-O2
 
 `/registry` is an example mount path for the companion
 `securely1g/sonic-bazel-registry` checkout. Use branch `bazel-swss` at commit
-`1bce1094dcdc7e511baaa809fa622862585bcf8d`, then mount that checkout at
+`ab3d2af909a4791bdc53d3aa48005c36cb7d528a`, then mount that checkout at
 `/registry` in the build environment. Use its visible absolute path in the
 `file://` URL when your mount differs. BCR remains the fallback registry.
 The caller disables lockfile use for this local registry iteration. The pinned
