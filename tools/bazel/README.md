@@ -139,7 +139,10 @@ AMD64 and ARM64 runners. It derives explicit program labels from
 `bazel/production_sources.bzl`, builds each label and `//dist:cpp_binaries`, and
 checks that the aggregate contains exactly one executable per program. It also
 checks the ELF architecture, position-independent executable format, RELRO,
-and immediate symbol binding. The uploaded inspection bundle contains the
+and immediate symbol binding. Both architectures also execute
+`//gcovpreload:gcovpreload_test` with test-result reuse disabled, proving that
+the constructor-only preload library installs its signal handlers at startup.
+The uploaded inspection bundle contains the
 executables and a JSON receipt with their checksums and source revision.
 
 Run the same check in a native Debian Trixie environment after
