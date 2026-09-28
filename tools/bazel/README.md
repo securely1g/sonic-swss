@@ -5,9 +5,10 @@ existing generator supplies their production source lists and retains the
 locked Cargo action for `countersyncd`.
 The Common dependency is fetched from
 [securely1g/sonic-swss-common](https://github.com/securely1g/sonic-swss-common)
-at revision `10d14ae58ae73899a52a2447d1e791a2b7bd1a34`. Its registry entry
-applies the Bazel migration from
-[sonic-swss-common PR #1215](https://github.com/sonic-net/sonic-swss-common/pull/1215).
+at revision `99572f5a34e7f408dee49eaf2a3ba60c5d443fb6`. That source owns the
+Bazel build from
+[securely1g/sonic-swss-common PR #1](https://github.com/securely1g/sonic-swss-common/pull/1);
+the registry applies only the module-version patch.
 
 For an external module caller, use the
 [canonical caller guide](../../bazel/README.md#build-c-targets-from-an-external-module-caller).
@@ -68,7 +69,7 @@ Common's existing YANG C++ sources.
 ## Build commands
 
 These standalone commands use the immutable `securely1g/sonic-bazel-registry`
-commit `ab3d2af909a4791bdc53d3aa48005c36cb7d528a` configured in `.bazelrc`.
+commit `97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce` configured in `.bazelrc`.
 The canonical caller guide also shows how to use a checkout of that same
 registry revision.
 
