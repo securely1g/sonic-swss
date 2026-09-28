@@ -48,37 +48,26 @@ CXXFLAGS_COMMON = [
     "-Wno-missing-include-dirs",
 ]
 
-# Preserve the effective hardening flags passed by the nested debian/rules
-# invocation in a normal Trixie dpkg-buildpackage build. GCC 14.2.0 is built
-# with --enable-default-pie.
-# The existing warning set already includes -Wformat=2 and -Werror.
+# The managed GCC toolchain supplies optimization, stack/CPU hardening, and
+# linker hardening. Preserve the additional normal Trixie SWSS release flags:
+# its nested debian/rules invocation uses fortification level 3 rather than the
+# toolchain's baseline level 2. The warning set above includes -Wformat=2/-Werror.
 RELEASE_HARDENING_COPTS = select({
     "//tools/bazel:release_link": [
         "-Wdate-time",
         "-U_FORTIFY_SOURCE",
         "-D_FORTIFY_SOURCE=3",
-        "-fstack-protector-strong",
-        "-fstack-clash-protection",
     ],
-    "//conditions:default": [],
-}) + select({
-    "//tools/bazel:release_x86_64": ["-fcf-protection"],
-    "//tools/bazel:release_arm64": ["-mbranch-protection=standard"],
-    "//conditions:default": [],
-})
-
-RELEASE_HARDENING_LINKOPTS = select({
-    "//tools/bazel:release_link": ["-Wl,-z,relro", "-Wl,-z,now"],
     "//conditions:default": [],
 })
 
 DBGFLAGS = select({
-    "@sonic_build_infra//:debug_enabled": ["-ggdb", "-DDEBUG"],
+    "@sonic_build_infra//:debug_enabled": ["-ggdb", "-DDEBUG", "-O0", "-U_FORTIFY_SOURCE"],
     "//conditions:default": ["-g"],
 })
 
 DBGFLAGS_NDEBUG = select({
-    "@sonic_build_infra//:debug_enabled": ["-ggdb", "-DDEBUG"],
+    "@sonic_build_infra//:debug_enabled": ["-ggdb", "-DDEBUG", "-O0", "-U_FORTIFY_SOURCE"],
     "//conditions:default": ["-g", "-DNDEBUG"],
 })
 
@@ -102,6 +91,9 @@ ASAN_LINKOPTS = select({
 GCOV_COPTS = select({
     "//tools/bazel:gcov_enabled": [
         "-O0",
+        # Keep coverage explicitly unfortified when overriding the toolchain
+        # optimization default.
+        "-U_FORTIFY_SOURCE",
         "-fprofile-arcs",
         "-ftest-coverage",
         "-DGCOV_ENABLED",
