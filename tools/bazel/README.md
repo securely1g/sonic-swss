@@ -19,8 +19,8 @@ For an external module caller, use the
 - `bazel/generate.py` reads the configured Automake build and emits
   `production_sources.bzl` plus generated C++ and Cargo targets. The module
   loads a copy of that source map from `bazel/production_sources.bzl`.
-- `tools/bazel/cc.bzl` applies the common SWSS compiler options and the native
-  ASAN and GCOV source selections.
+- `tools/bazel/cc.bzl` applies the common SWSS compiler options, normal Trixie
+  release hardening, and the native ASAN and GCOV source selections.
 - `tools/bazel/deps.bzl` groups dependency labels by component.
 - `dist/BUILD.bazel` contains a separate runtime tar draft.
 
@@ -67,10 +67,10 @@ Common's existing YANG C++ sources.
 
 ## Build commands
 
-The root `.bazelrc` pins the required module versions to commit
-`ab3d2af909a4791bdc53d3aa48005c36cb7d528a` of
-`securely1g/sonic-bazel-registry`. The canonical caller guide shows how an
-external module caller can use the same registry contents from a local checkout.
+These standalone commands use the immutable `securely1g/sonic-bazel-registry`
+commit `ab3d2af909a4791bdc53d3aa48005c36cb7d528a` configured in `.bazelrc`.
+The canonical caller guide also shows how to use a checkout of that same
+registry revision.
 
 Run these commands from the repository root. Replace the manifest path with a
 local path whose DEBs are visible to the build process.
@@ -112,7 +112,7 @@ same configuration and `--output=files` to print an artifact's output path.
 
 | Configuration | Effect |
 | --- | --- |
-| `--config=release` | Selects Bazel `opt` mode and adds `-O2` for C/C++. Production binaries also use the normal Trixie native build's hardening flags when ASAN and GCOV are disabled. The selected GCC toolchain does not currently add optimization for `opt` itself. |
+| `--config=release` | Selects Bazel `opt` mode, adds `-O2` for C/C++, and preserves the normal Trixie release hardening flags. The selected GCC toolchain does not currently add optimization for `opt` itself. |
 | `--config=debug` | Selects Bazel `dbg` mode and the SWSS debug definitions. |
 | `--config=asan` | Enables the existing SWSS C++ AddressSanitizer flags and startup sources. |
 | `--config=gcov` | Enables SWSS C++ coverage instrumentation and `-O0`. |
@@ -120,6 +120,32 @@ same configuration and `--output=files` to print an artifact's output path.
 ASAN and GCOV can be combined with `release`; GCOV's per-target `-O0` takes
 precedence for SWSS C++ compilation. These flags do not instrument Rust,
 matching the native build's separate Cargo invocation.
+
+## CI validation
+
+The Bazel workflow builds the normal Trixie release configuration on native
+AMD64 and ARM64 runners. It derives explicit program labels from
+`bazel/production_sources.bzl`, builds each label and `//dist:cpp_binaries`, and
+checks that the aggregate contains exactly one executable per program. It also
+checks the ELF architecture, position-independent executable format, RELRO,
+and immediate symbol binding. The uploaded inspection bundle contains the
+executables and a JSON receipt with their checksums and source revision.
+
+Run the same check in a native Debian Trixie environment after
+[preparing the pinned CI inputs](../../third_party/ci_debs/README.md):
+
+```sh
+python3 bazel/ci_production.py build \
+  --architecture amd64 \
+  --manifest /absolute/path/to/swss-ci-debs/manifest.json \
+  --artifact-directory /absolute/path/to/empty-output-directory
+```
+
+Use `--architecture arm64` on a native ARM64 host. The generator job compares
+the tracked source map with a fresh Automake configuration. The C++ CodeQL job
+builds the same explicit targets after analyzer initialization with action
+caches disabled, then checks that every production C++ source was extracted
+under the repository source root.
 
 ## Separate runtime tar draft
 

@@ -1,0 +1,102 @@
+name: Bazel
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  production:
+    name: Bazel production (${{ matrix.arch }})
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: AMD64
+            architecture: amd64
+            runner: ubuntu-24.04
+          - arch: ARM64
+            architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: debian:trixie-20260918@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c
+    steps:
+      - name: Install host build tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            binutils build-essential ca-certificates git python3 tar
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure Git for the container checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazelisk-version: 1.29.0
+          bazelisk-cache: true
+          repository-cache: true
+          disk-cache: swss-production-${{ matrix.architecture }}
+          cache-version: "8.5.1"
+
+      - name: Prepare verified CI dependencies
+        run: >-
+          python3 third_party/ci_debs/prepare.py
+          --architecture ${{ matrix.architecture }}
+          --output-directory "$RUNNER_TEMP/swss-ci-debs"
+
+      - name: Build and inspect production C++ programs
+        run: >-
+          python3 bazel/ci_production.py build
+          --architecture ${{ matrix.architecture }}
+          --manifest "$RUNNER_TEMP/swss-ci-debs/manifest.json"
+          --artifact-directory artifacts/production
+
+      - name: Upload C++ build outputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sonic-swss-cpp-${{ matrix.architecture }}
+          path: artifacts/production/
+          if-no-files-found: error
+
+  generator:
+    name: Bazel generator synchronization
+    runs-on: ubuntu-24.04
+    container: debian:trixie-20260918@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c
+    timeout-minutes: 20
+    steps:
+      - name: Install configure tools and libraries
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            autoconf autoconf-archive automake autotools-dev build-essential \
+            ca-certificates debhelper git libhiredis-dev libjansson-dev \
+            libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev libnl-route-3-dev \
+            libteam-dev libtool pkg-config python3
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run generator unit tests
+        run: python3 -m unittest discover -s bazel/tests -v
+
+      - name: Configure the native production source selection
+        run: |
+          ./autogen.sh
+          debian/rules override_dh_auto_configure
+
+      - name: Check the production source map
+        run: >-
+          python3 bazel/generate.py
+          --source "$GITHUB_WORKSPACE"
+          --configured-build "$GITHUB_WORKSPACE"
+          --check-production-sources bazel/production_sources.bzl

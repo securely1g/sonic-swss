@@ -131,11 +131,11 @@ def value(variables: dict[str, tuple[str, str]], name: str, fallback: str | None
 
 
 class Generator:
-    def __init__(self, source: Path, configured: Path, package: str, vendor: Path, vendor_config: Path):
+    def __init__(self, source: Path, configured: Path, package: str, vendor: Path | None = None, vendor_config: Path | None = None):
         self.source = source.resolve()
         self.configured = configured.resolve()
-        self.vendor = vendor.resolve()
-        self.vendor_config = vendor_config.resolve()
+        self.vendor = vendor.resolve() if vendor is not None else None
+        self.vendor_config = vendor_config.resolve() if vendor_config is not None else None
         self.package = relative_path(package).as_posix()
         self.inputs: dict[str, Path] = {}
         self.programs: list[dict[str, Any]] = []
@@ -353,7 +353,7 @@ class Generator:
                 raise ValueError(f"missing locked Cargo workspace input: {required}")
 
     def read_vendor(self) -> None:
-        if not self.vendor.is_dir() or not self.vendor_config.is_file():
+        if self.vendor is None or self.vendor_config is None or not self.vendor.is_dir() or not self.vendor_config.is_file():
             raise ValueError("Cargo vendor directory and cargo vendor configuration are required")
         configuration_text = self.vendor_config.read_text()
         configuration = tomllib.loads(configuration_text)
@@ -398,17 +398,24 @@ class Generator:
         self.vendor_archive = output.getvalue()
         self.cargo_sources.add(VENDOR_ARCHIVE)
 
-    def inventory(self, epoch: int) -> dict[str, Any]:
+    def production_inventory(self) -> dict[str, Any]:
         installed = [program["install_path"] for program in self.programs]
         installed += [entry["install_path"] for entry in self.automake_install]
         if len(installed) != len(set(installed)):
             raise ValueError("configured build has duplicate install paths")
         return {
+            "programs": sorted(self.programs, key=lambda item: item["name"]),
+            "automake_install": sorted(self.automake_install, key=lambda item: item["install_path"]),
+        }
+
+    def inventory(self, epoch: int) -> dict[str, Any]:
+        production = self.production_inventory()
+        return {
             "schema_version": 1,
             "configured_subdirectories": self.subdirectories,
             "configured_cxx": sorted(self.compilers),
-            "programs": sorted(self.programs, key=lambda item: item["name"]),
-            "automake_install": sorted(self.automake_install, key=lambda item: item["install_path"]),
+            "programs": production["programs"],
+            "automake_install": production["automake_install"],
             "cargo": {
                 "label": f"//{self.package}:countersyncd",
                 "locked": True,
@@ -558,14 +565,26 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument("--configured-build", required=True, type=Path)
-    parser.add_argument("--output-package", required=True, type=Path)
-    parser.add_argument("--cargo-vendor", required=True, type=Path)
-    parser.add_argument("--cargo-vendor-config", required=True, type=Path)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--output-package", type=Path)
+    mode.add_argument("--check-production-sources", type=Path, metavar="FILE")
+    parser.add_argument("--cargo-vendor", type=Path)
+    parser.add_argument("--cargo-vendor-config", type=Path)
     parser.add_argument("--workspace-package", default="swss")
     parser.add_argument("--source-date-epoch", type=int)
     args = parser.parse_args()
     source = args.source.resolve()
     configured = args.configured_build.resolve()
+    if args.check_production_sources is not None:
+        generator = Generator(source, configured, args.workspace_package)
+        generator.read_make_tree()
+        generated = generator.module_sources(generator.production_inventory()).encode()
+        if args.check_production_sources.read_bytes() != generated:
+            parser.exit(1, f"{args.check_production_sources} does not match configured Automake production sources\n")
+        print(f"{args.check_production_sources} matches configured Automake production sources")
+        return
+    if args.cargo_vendor is None or args.cargo_vendor_config is None:
+        parser.error("--cargo-vendor and --cargo-vendor-config are required with --output-package")
     vendor = args.cargo_vendor.resolve()
     output = args.output_package.absolute()
     if any(output.resolve().is_relative_to(root) for root in (source, configured, vendor)):
