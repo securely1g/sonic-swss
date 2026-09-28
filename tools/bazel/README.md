@@ -68,7 +68,7 @@ Common's existing YANG C++ sources.
 ## Build commands
 
 The root `.bazelrc` pins the required module versions to commit
-`1bce1094dcdc7e511baaa809fa622862585bcf8d` of
+`ab3d2af909a4791bdc53d3aa48005c36cb7d528a` of
 `securely1g/sonic-bazel-registry`. The canonical caller guide shows how an
 external module caller can use the same registry contents from a local checkout.
 
