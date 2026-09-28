@@ -137,7 +137,7 @@ bazel_dep(name = "rules_cc", version = "0.2.16")
 bazel_dep(name = "sonic-swss", version = "0.0.0", repo_name = "sonic_swss")
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.0-10d14ae58ae73899a52a2447d1e791a2b7bd1a34",
+    version = "0.0.0-99572f5a34e7f408dee49eaf2a3ba60c5d443fb6",
     repo_name = "sonic_swss_common",
 )
 bazel_dep(
@@ -186,12 +186,13 @@ build:release --copt=-O2
 
 `/registry` is an example mount path for the companion
 `securely1g/sonic-bazel-registry` checkout. Use branch `bazel-swss` at commit
-`ab3d2af909a4791bdc53d3aa48005c36cb7d528a`, then mount that checkout at
+`97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce`, then mount that checkout at
 `/registry` in the build environment. Use its visible absolute path in the
 `file://` URL when your mount differs. BCR remains the fallback registry.
 The caller disables lockfile use for this local registry iteration. The pinned
-Common entry fetches revision `10d14ae58ae73899a52a2447d1e791a2b7bd1a34` from
-`securely1g/sonic-swss-common` and applies the registry's Bazel migration patch.
+Common entry fetches revision `99572f5a34e7f408dee49eaf2a3ba60c5d443fb6` from
+`securely1g/sonic-swss-common`. Its source already owns the Bazel build; the
+registry applies only the module-version patch.
 
 The three `ci-debs` flags select the SWSS dependency provider, the imported
 schema, and Common's existing YANG C++ sources. The explicit
