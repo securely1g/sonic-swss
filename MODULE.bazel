@@ -13,7 +13,7 @@ bazel_dep(name = "buildifier_prebuilt", version = "8.5.1.3", dev_dependency = Tr
 
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "googletest", version = "1.11.0", repo_name = "com_google_googletest")
-bazel_dep(name = "libnl3", version = "3.7.0.sonic-buildimage.1")
+bazel_dep(name = "libnl3", version = "3.7.0-sonic.2")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.16")
 bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.2")
@@ -33,6 +33,12 @@ bazel_dep(
     name = "sonic-swss-common",
     version = "0.0.0-99572f5a34e7f408dee49eaf2a3ba60c5d443fb6",
     repo_name = "sonic_swss_common",
+)
+
+# Historical dotted versions requested by dependencies sort above this release.
+single_version_override(
+    module_name = "libnl3",
+    version = "3.7.0-sonic.2",
 )
 
 gcc = use_extension("@sonic_build_infra//toolchains/gcc:extensions.bzl", "gcc")
