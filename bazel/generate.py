@@ -542,6 +542,7 @@ def synchronize(output: Path, rendered: dict[str, tuple[bytes, int]]) -> None:
             try:
                 path.rmdir()
             except OSError:
+                # Directories with retained generated files must remain in place.
                 pass
     for name, (contents, mode) in sorted(rendered.items()):
         relative_path(name)

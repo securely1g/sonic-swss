@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
+import unittest.mock
 
 
 BAZEL_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -194,7 +194,7 @@ class GeneratorTest(unittest.TestCase):
         makefile = directory / "Makefile"
         contents = f"abs_top_srcdir = {self.fixture.source}\nINCLUDES = -I $(FPM_PATH)\n"
         makefile.write_text(contents)
-        with mock.patch.dict(os.environ):
+        with unittest.mock.patch.dict(os.environ):
             os.environ.pop("FPM_PATH", None)
             variables = generate.query_make(directory)
         self.assertEqual(generate.value(variables, "INCLUDES"), f"-I {self.fixture.source}/fpmsyncd")
