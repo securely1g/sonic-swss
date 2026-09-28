@@ -211,6 +211,9 @@ def build(args: argparse.Namespace) -> None:
         options += [
             "--jobs=2",
             "--spawn_strategy=local",
+            # Local tracing exposes GCC's undeclared include-fixed directory.
+            # Keep C++ compilation on the toolchain's explicit header paths.
+            "--cxxopt=-nostdinc",
             "--nouse_action_cache",
             "--noremote_accept_cached",
             "--noremote_upload_local_results",
