@@ -297,7 +297,6 @@ def build(args: argparse.Namespace) -> None:
     module_graph = run(
         bazel + [
             "mod", "graph", "--lockfile_mode=off",
-            f"--platforms={target_platform}",
             "--output=json", "--verbose", "--noshow_progress", "--color=no", "--curses=no",
         ],
         capture=True,
