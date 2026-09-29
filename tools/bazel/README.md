@@ -5,10 +5,9 @@ existing generator supplies their production source lists and retains the
 locked Cargo action for `countersyncd`.
 The Common dependency is fetched from
 [securely1g/sonic-swss-common](https://github.com/securely1g/sonic-swss-common)
-at revision `99572f5a34e7f408dee49eaf2a3ba60c5d443fb6`. That source owns the
-Bazel build from
-[securely1g/sonic-swss-common PR #1](https://github.com/securely1g/sonic-swss-common/pull/1);
-the registry applies only the module-version patch.
+at revision `093a849f01722afb4730e685b3eb4f22a9bc9191`. That source owns its
+Bazel targets and generates the configuration schema from source inputs. The
+normal SWSS configuration enables Common's YANG C++ sources.
 
 For an external module caller, use the
 [canonical caller guide](../../bazel/README.md#build-c-targets-from-an-external-module-caller).
@@ -48,54 +47,56 @@ describes the prepared environment required by its Cargo action.
 
 ## SONiC dependency inputs
 
-The current prototype imports the SAI, sairedis, DASH, and generated schema
-inputs selected by native SWSS CI. Select it explicitly with both:
+The C++ module uses these public interfaces for programs and tests:
 
-```text
---config=ci-debs
---repo_env=SONIC_SWSS_CI_DEBS_MANIFEST=/absolute/path/to/manifest.json
-```
+| Input | Public label |
+| --- | --- |
+| Common shared library | `@sonic_swss_common//:libswsscommon_shared` |
+| SAI headers for tests | `@sai//:upstream_headers` |
+| SAI metadata libraries | `@sonic_sairedis//meta:saimetadata_shared`, `@sonic_sairedis//meta:saimeta_shared` |
+| sairedis shared library | `@sonic_sairedis//lib:sairedis_shared` |
+| DASH generated headers and shared library | `@sonic_dash_api//:dashapi` |
 
-The manifest names local DEB files and their SHA-256 values. The repository
-rule validates each file before exposing headers and shared libraries to Bazel.
-It does not select or download a latest CI artifact. See the
-[CI DEB import documentation](../../third_party/ci_debs/README.md) for the
-manifest format, package provenance, and labels.
+Common revision `093a849f01722afb4730e685b3eb4f22a9bc9191` generates its
+configuration schema from source inputs with YANG enabled. SAI and sairedis
+provide their headers and libraries through their own module targets.
 
-`ci-debs` remains an opt-in provider for module builds. Targets that require these inputs report a
-configuration error when no provider is selected. The canonical caller guide
-shows the provider and schema selection flags and the flag that includes
-Common's existing YANG C++ sources.
+DASH retains an input package containing its generated headers and
+`libdashapi.so`. Its module selects the native AMD64 or ARM64 package and checks
+the recorded SHA-256 of `libdashapi_1.0.0_<architecture>.deb` before exposing
+those files. The package is obtained from a pipeline artifact ZIP; the pinned
+hash applies to the selected package member. SWSS declares protobuf separately
+through `@swss_debian//libprotobuf-dev:libprotobuf`.
+
+The remaining Debian development libraries use the declared `trixie` and
+`swss_debian` dependency sets. `MODULE.bazel` and `.bazelrc` select these inputs
+for normal C++ builds.
 
 ## Build commands
 
-These standalone commands select `sonic-build-infra
-0.0.7-91fe8246519f99838da936eee54e85208c704a4d` and the merged
-`libnl3 3.7.0-sonic.2` release from `securely1g/sonic-bazel-registry` commit
-`2f4012b01f7a73f24b12de64a0a9ae86a06b0e89`. The immutable combined registry
-`97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce` remains the fallback for pending
-Distroless and Common module releases, followed by BCR.
+The repository's ordered immutable registries select `sonic-build-infra
+0.0.7-91fe8246519f99838da936eee54e85208c704a4d`, `libnl3 3.7.0-sonic.2`, and
+the declared Distroless, DASH, Common, SAI, and sairedis modules, followed by
+BCR. The canonical caller guide includes the same registry order.
 `MODULE.bazel` overrides libnl3's version because historical dotted version
-requests from dependencies would otherwise outrank the new release. External
-root callers must repeat that override, as shown in the canonical caller guide.
+requests from dependencies would otherwise outrank the new release. It also
+selects RE2 `2024-07-02.bcr.1`, whose BCR metadata repair marks its obsolete
+local C++ extension as a development dependency while retaining the same source
+archive. External root callers need both overrides for this selection, as shown
+in the canonical caller guide.
 
-Run these commands from the repository root. Replace the manifest path with a
-local path whose DEBs are visible to the build process.
+Run these commands from the repository root.
 
 Build all 29 C++ programs:
 
 ```sh
-bazel build --config=release --config=ci-debs \
-  --repo_env=SONIC_SWSS_CI_DEBS_MANIFEST=/absolute/path/to/manifest.json \
-  //dist:cpp_binaries
+bazel build --config=release //dist:cpp_binaries
 ```
 
 Build one C++ program during development:
 
 ```sh
-bazel build --config=release --config=ci-debs \
-  --repo_env=SONIC_SWSS_CI_DEBS_MANIFEST=/absolute/path/to/manifest.json \
-  //orchagent:orchagent
+bazel build --config=release //orchagent:orchagent
 ```
 
 Build the separate `rules_rust` draft:
@@ -107,9 +108,7 @@ bazel build --config=release //crates/countersyncd:countersyncd
 Build the separate runtime tar draft:
 
 ```sh
-bazel build --config=release --config=ci-debs \
-  --repo_env=SONIC_SWSS_CI_DEBS_MANIFEST=/absolute/path/to/manifest.json \
-  //dist:swss_pkg
+bazel build --config=release //dist:swss_pkg
 ```
 
 `//:swss_pkg` is an alias for the same tar target. Use `bazel cquery` with the
@@ -149,19 +148,19 @@ order, and mapped dependency labels. The job also runs the pinned Buildifier
 formatting check.
 
 The uploaded inspection bundle contains the executables, build and test logs,
-the resolved module graph, both build contracts, and a JSON receipt binding
-those files to their checksums and source revision. Toolchain action details,
-external header precedence, and runtime equivalence remain outside this check.
+the resolved module graph, the normalized native contract, the configured-rule
+capture, the comparison result, and a JSON build receipt binding inputs and
+outputs to their checksums and source revision. Toolchain actions, response
+files, transitive provider paths, external header precedence, native link
+ordering, and runtime equivalence remain outside this check.
 
 Run the same check in a native Debian Trixie environment after configuring
 Automake, recording the native contract as described in the
-[generator guide](../../bazel/README.md#compare-native-and-bazel-build-settings),
-and [preparing the pinned CI inputs](../../third_party/ci_debs/README.md):
+[generator guide](../../bazel/README.md#compare-native-and-bazel-build-settings):
 
 ```sh
 python3 bazel/ci_production.py build \
   --architecture amd64 \
-  --manifest /absolute/path/to/swss-ci-debs/manifest.json \
   --native-contract /absolute/path/to/native-build-contract.json \
   --artifact-directory /absolute/path/to/empty-output-directory
 ```
@@ -172,10 +171,14 @@ sandbox. The workflow supports the same mode through its `clean` input or a
 `Bazel-Clean: true` trailer on the PR head commit.
 
 The C++ CodeQL job builds the production programs and selected GCOV preload
-sources after analyzer initialization with action caches disabled. Its receipt
-requires extraction of all selected tracked sources and records additional and
-excluded source paths. It does not claim historical analyzer parity or runtime
-coverage.
+sources after analyzer initialization with action caches disabled. Its tracing
+configuration excludes only SAI's locked tool preparation action, which starts
+no compiler, so CodeQL's preload does not enter that action's strict runtime
+dependency check. SAI metadata and SWSS sources compile in separate Bazel
+actions with the standard C++ matchers still active. The receipt requires
+extraction of all selected tracked sources and records additional and excluded
+source paths. It does not claim
+historical analyzer parity or runtime coverage.
 
 ## Separate runtime tar draft
 

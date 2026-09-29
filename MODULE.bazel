@@ -82,11 +82,6 @@ apt.install(
 )
 use_repo(apt, "swss_debian", "trixie")
 
-# Opt-in prototype for the SONiC DEBs selected by the existing SWSS CI.
-# The repository is fetched only when used and requires an explicit manifest.
-ci_debs = use_extension("//third_party/ci_debs:extensions.bzl", "ci_debs")
-use_repo(ci_debs, "sonic_ci_debs")
-
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
 rust.toolchain(
     edition = "2021",
