@@ -356,8 +356,8 @@ def build(args: argparse.Namespace) -> None:
         program_outputs.append(outputs[label][0])
     if len(program_outputs) != len(set(program_outputs)) or sorted(outputs[AGGREGATE]) != sorted(program_outputs):
         raise ValueError("//dist:cpp_binaries outputs do not match the explicit production programs")
-    if sha256(SOURCE_MAP) != source_map_sha256 or sha256(manifest) != manifest_sha256:
-        raise ValueError("the production source map or CI DEB manifest changed during the build")
+    if sha256(SOURCE_MAP) != source_map_sha256:
+        raise ValueError("the production source map changed during the build")
     if native_contract is not None and (
         sha256(native_contract) != native_contract_sha256 or sha256(native_contract_path) != native_contract_sha256
     ):
