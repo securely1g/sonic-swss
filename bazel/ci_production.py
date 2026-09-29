@@ -403,7 +403,7 @@ def build(args: argparse.Namespace) -> None:
         "bazel_version": bazel_version,
         "git_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "source_map_sha256": source_map_sha256,
-        "dependency_provider_mode": "ci_debs",
+        "dependency_provider_mode": "registry_modules",
         "ci_debs_manifest_sha256": manifest_sha256,
         "build_log": {"artifact": build_log.name, "sha256": sha256(build_log)},
         "module_graph": {"artifact": module_graph_path.name, "sha256": sha256(module_graph_path)},

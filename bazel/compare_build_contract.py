@@ -298,8 +298,20 @@ def check_configured_rules(native: dict[str, Any], evidence: dict[str, Any], pro
         actual_compile, actual_includes = target_compile_options(rule)
         if actual_includes != expected_includes:
             raise ValueError(f"resolved local include order differs from native: {label}")
-        if normalize_compile_options(actual_compile) != normalize_compile_options(expected_compile):
-            raise ValueError(f"resolved target cxxopts differ from native mapping: {label}")
+        actual_normalized = normalize_compile_options(actual_compile)
+        expected_normalized = normalize_compile_options(expected_compile)
+        if actual_normalized != expected_normalized:
+            differences = {}
+            states = {
+                key: {"expected": expected_normalized["states"].get(key), "actual": actual_normalized["states"].get(key)}
+                for key in sorted(expected_normalized["states"].keys() | actual_normalized["states"].keys())
+                if expected_normalized["states"].get(key) != actual_normalized["states"].get(key)
+            }
+            if states:
+                differences["states"] = states
+            if actual_normalized["ordered_literals"] != expected_normalized["ordered_literals"]:
+                differences["ordered_literals"] = {"expected": expected_normalized["ordered_literals"], "actual": actual_normalized["ordered_literals"]}
+            raise ValueError(f"resolved target cxxopts differ from native mapping: {label}; differences={json.dumps(differences, sort_keys=True)}")
         if list_attribute(rule, "linkopts") != expected_link:
             raise ValueError(f"resolved target linkopts differ from native mapping: {label}")
         system = mappings["implicit_system_header_providers"]

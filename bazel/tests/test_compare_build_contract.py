@@ -152,7 +152,7 @@ class BuildContractTest(unittest.TestCase):
         fixture = Fixture()
         result = fixture.check()
         self.assertEqual(result[0]["local_include_directories"], ["app", ".", "app"])
-        self.assertIn("@sonic_ci_debs//:saimetadata", result[0]["required_dependency_labels"])
+        self.assertIn("@sonic_sairedis//meta:saimetadata_shared", result[0]["required_dependency_labels"])
 
     def test_detects_native_and_bazel_option_drift(self):
         for side, kind in (("native", "compile"), ("bazel", "compile"), ("native", "link"), ("bazel", "link")):
@@ -163,12 +163,16 @@ class BuildContractTest(unittest.TestCase):
                     fixture.native[kind + "_profiles"]["example"].append({"argument": option, "classification": "literal"})
                 else:
                     fixture.attribute("//app:example", "cxxopts" if kind == "compile" else "linkopts").append(option)
-                with self.assertRaisesRegex(ValueError, "resolved target .* differ from native mapping"):
+                with self.assertRaisesRegex(ValueError, "resolved target .* differ from native mapping") as raised:
                     fixture.check()
+                if kind == "compile":
+                    self.assertIn('"expected":', str(raised.exception))
+                    self.assertIn('"actual":', str(raised.exception))
+                    self.assertIn(option, str(raised.exception))
 
     def test_requires_present_reachable_providers_and_classified_direct_labels(self):
         fixture = Fixture()
-        metadata = fixture.canonical("@sonic_ci_debs//:saimetadata")
+        metadata = fixture.canonical("@sonic_sairedis//meta:saimetadata_shared")
         fixture.evidence["cquery"]["results"] = [item for item in fixture.evidence["cquery"]["results"] if item["target"]["rule"]["name"] != metadata]
         with self.assertRaisesRegex(ValueError, "mapped dependencies are not reachable"):
             fixture.check()
@@ -236,12 +240,22 @@ class BuildContractTest(unittest.TestCase):
             fixture.check()
 
     def test_target_hardening_roles_do_not_cross_architecture(self):
-        fixture = Fixture()
-        with self.assertRaisesRegex(ValueError, "unclassified native compile option"):
-            compare.native_options(fixture.native, "example", "aarch64")
-        fixture.native["compile_profiles"]["example"] = [record for record in fixture.native["compile_profiles"]["example"] if record["classification"] != "target_toolchain"]
-        with self.assertRaisesRegex(ValueError, "unclassified native link option"):
-            compare.native_options(fixture.native, "example", "aarch64")
+        for cpu, option, other_cpu in (
+            ("x86_64", "-fcf-protection", "aarch64"),
+            ("aarch64", "-mbranch-protection=standard", "x86_64"),
+        ):
+            with self.subTest(cpu=cpu):
+                fixture = Fixture()
+                for profile in ("compile_profiles", "link_profiles"):
+                    for record in fixture.native[profile]["example"]:
+                        if record["classification"].startswith("target_"):
+                            record["argument"] = option
+                compare.native_options(fixture.native, "example", cpu)
+                with self.assertRaisesRegex(ValueError, "unclassified native compile option"):
+                    compare.native_options(fixture.native, "example", other_cpu)
+                fixture.native["compile_profiles"]["example"] = [record for record in fixture.native["compile_profiles"]["example"] if record["classification"] != "target_toolchain"]
+                with self.assertRaisesRegex(ValueError, "unclassified native link option"):
+                    compare.native_options(fixture.native, "example", other_cpu)
 
     def test_checks_revision_source_map_architecture_and_reviewed_infra(self):
         fixture = Fixture()

@@ -16,18 +16,11 @@ SWSS_DEPS = [
     "@trixie//nlohmann-json3-dev:nlohmann-json3",
 ]
 
-_CI_DEBS_REQUIRED = "This target needs SONiC dependency inputs. The current prototype uses --config=ci-debs with --repo_env=SONIC_SWSS_CI_DEBS_MANIFEST=/absolute/path/to/manifest.json."
+CFGMGR_DEPS = SWSS_DEPS + ["@sonic_sairedis//meta:saimeta_shared"]
 
-CFGMGR_DEPS = SWSS_DEPS + select({
-    "//tools/bazel:ci_debs_enabled": ["@sonic_ci_debs//:saimeta"],
-}, no_match_error = _CI_DEBS_REQUIRED)
-
-ORCHAGENT_DEPS = CFGMGR_DEPS + select({
-    "//tools/bazel:ci_debs_enabled": [
-        "@sonic_ci_debs//:sairedis",
-    ],
-}, no_match_error = _CI_DEBS_REQUIRED) + [
+ORCHAGENT_DEPS = CFGMGR_DEPS + [
     "@sonic_dash_api//:dashapi",
+    "@sonic_sairedis//lib:sairedis_shared",
     "@swss_debian//libjemalloc-dev:libjemalloc",
     "@swss_debian//libprotobuf-dev:libprotobuf",
     "@swss_debian//libyaml-cpp-dev:libyaml-cpp",
@@ -38,19 +31,15 @@ TEAM_DEPS = SWSS_DEPS + ["@swss_debian//libteam-dev:libteam"]
 
 TLM_TEAM_DEPS = TEAM_DEPS + ["@swss_debian//libjansson-dev:libjansson"]
 
-TEST_DEPS = SWSS_DEPS + select({
-    "//tools/bazel:ci_debs_enabled": ["@sonic_ci_debs//:sai_headers"],
-}, no_match_error = _CI_DEBS_REQUIRED) + [
+TEST_DEPS = SWSS_DEPS + [
     "@com_google_googletest//:gtest",
     "@com_google_googletest//:gtest_main",
+    "@sai//:upstream_headers",
 ]
 
-P4_TEST_DEPS = TEST_DEPS + select({
-    "//tools/bazel:ci_debs_enabled": [
-        "@sonic_ci_debs//:saimeta",
-        "@sonic_ci_debs//:sairedis",
-    ],
-}, no_match_error = _CI_DEBS_REQUIRED) + [
+P4_TEST_DEPS = TEST_DEPS + [
     "@com_google_googletest//:gmock",
     "@com_google_googletest//:gmock_main",
+    "@sonic_sairedis//lib:sairedis_shared",
+    "@sonic_sairedis//meta:saimeta_shared",
 ]
