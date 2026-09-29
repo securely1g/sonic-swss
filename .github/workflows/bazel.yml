@@ -100,17 +100,10 @@ jobs:
           --platforms=@sonic_build_infra//platforms:${{ matrix.platform }}
           //tools/bazel/buildifier:buildifier.check
 
-      - name: Prepare verified CI dependencies
-        run: >-
-          python3 third_party/ci_debs/prepare.py
-          --architecture ${{ matrix.architecture }}
-          --output-directory "$RUNNER_TEMP/swss-ci-debs"
-
       - name: Build and inspect production C++ programs
         run: >-
           python3 bazel/ci_production.py build
           --architecture ${{ matrix.architecture }}
-          --manifest "$RUNNER_TEMP/swss-ci-debs/manifest.json"
           --native-contract "$RUNNER_TEMP/native-build-contract.json"
           --artifact-directory artifacts/production
           --mode ${{ steps.build_mode.outputs.mode }}

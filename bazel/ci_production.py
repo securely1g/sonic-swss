@@ -215,9 +215,6 @@ def build(args: argparse.Namespace) -> None:
     os_release = platform.freedesktop_os_release()
     if os_release.get("ID") != "debian" or os_release.get("VERSION_CODENAME") != "trixie":
         raise ValueError("production CI requires Debian Trixie")
-    manifest = args.manifest.resolve(strict=True)
-    if not manifest.is_file():
-        raise ValueError(f"CI DEB manifest is not a file: {manifest}")
     native_contract = None
     if args.mode != "codeql":
         if args.native_contract is None:
@@ -234,17 +231,14 @@ def build(args: argparse.Namespace) -> None:
     sources = tracked_source_paths(programs)
     labels = program_labels(programs)
     source_map_sha256 = sha256(SOURCE_MAP)
-    manifest_sha256 = sha256(manifest)
     native_contract_sha256 = sha256(native_contract) if native_contract is not None else None
     bazel_version = (ROOT / ".bazelversion").read_text().strip()
     if run([args.bazel, "--version"], capture=True).strip() != f"bazel {bazel_version}":
         raise ValueError(f"CI requires Bazel {bazel_version}")
     options = [
         "--config=release",
-        "--config=ci-debs",
         "--lockfile_mode=off",
         f"--platforms={target_platform}",
-        f"--repo_env=SONIC_SWSS_CI_DEBS_MANIFEST={manifest}",
         "--noshow_progress",
         "--color=no",
         "--curses=no",
@@ -404,7 +398,6 @@ def build(args: argparse.Namespace) -> None:
         "git_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "source_map_sha256": source_map_sha256,
         "dependency_provider_mode": "registry_modules",
-        "ci_debs_manifest_sha256": manifest_sha256,
         "build_log": {"artifact": build_log.name, "sha256": sha256(build_log)},
         "module_graph": {"artifact": module_graph_path.name, "sha256": sha256(module_graph_path)},
         "additional_compile_targets": additional_compile_targets,
@@ -506,7 +499,6 @@ def main() -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     build_parser = commands.add_parser("build")
     build_parser.add_argument("--architecture", choices=ARCHITECTURES, required=True)
-    build_parser.add_argument("--manifest", type=Path, required=True)
     build_parser.add_argument("--native-contract", type=Path)
     build_parser.add_argument("--artifact-directory", type=Path, required=True)
     build_parser.add_argument("--mode", choices=("normal", "clean", "codeql"), default="normal")

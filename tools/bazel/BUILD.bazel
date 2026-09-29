@@ -8,16 +8,6 @@ package(default_visibility = ["//visibility:public"])
 exports_files(["run_cc_test.sh"])
 
 bool_flag(
-    name = "ci_debs",
-    build_setting_default = False,
-)
-
-config_setting(
-    name = "ci_debs_enabled",
-    flag_values = {":ci_debs": "True"},
-)
-
-bool_flag(
     name = "asan",
     build_setting_default = False,
 )

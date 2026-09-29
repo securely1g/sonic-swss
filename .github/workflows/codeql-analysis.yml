@@ -80,17 +80,10 @@ jobs:
           repository-cache: true
           cache-version: "8.5.1"
 
-      - name: Prepare verified CI dependencies
-        run: >-
-          python3 third_party/ci_debs/prepare.py
-          --architecture amd64
-          --output-directory "$RUNNER_TEMP/swss-ci-debs"
-
       - name: Build production programs and selected C++ coverage targets
         run: >-
           python3 bazel/ci_production.py build
           --architecture amd64
-          --manifest "$RUNNER_TEMP/swss-ci-debs/manifest.json"
           --artifact-directory artifacts/codeql
           --mode codeql
 
