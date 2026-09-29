@@ -24,10 +24,10 @@ CFGMGR_DEPS = SWSS_DEPS + select({
 
 ORCHAGENT_DEPS = CFGMGR_DEPS + select({
     "//tools/bazel:ci_debs_enabled": [
-        "@sonic_ci_debs//:dashapi",
         "@sonic_ci_debs//:sairedis",
     ],
 }, no_match_error = _CI_DEBS_REQUIRED) + [
+    "@sonic_dash_api//:dashapi",
     "@swss_debian//libjemalloc-dev:libjemalloc",
     "@swss_debian//libprotobuf-dev:libprotobuf",
     "@swss_debian//libyaml-cpp-dev:libyaml-cpp",

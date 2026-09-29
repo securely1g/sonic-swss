@@ -30,6 +30,11 @@ bazel_dep(
     repo_name = "sonic_build_infra",
 )
 bazel_dep(
+    name = "sonic-dash-api",
+    version = "0.0.0-7af4056f7393b2ccbca9fc2d9aa668251e55b0a7",
+    repo_name = "sonic_dash_api",
+)
+bazel_dep(
     name = "sonic-swss-common",
     version = "0.0.0-99572f5a34e7f408dee49eaf2a3ba60c5d443fb6",
     repo_name = "sonic_swss_common",
