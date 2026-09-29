@@ -1,11 +1,12 @@
 common --check_direct_dependencies=off
 common --noincompatible_disallow_empty_glob
 
-# Select build-infra 0.0.7 and merged libnl3, then the dependency-owned DASH
-# import. Retain Distroless and Common from the immutable combined registry.
+# Keep the selected build-infra, libnl3, and Distroless inputs, then resolve
+# the dependency-owned DASH, Common, SAI, and sairedis modules.
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/2f4012b01f7a73f24b12de64a0a9ae86a06b0e89
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/c999f3c9ebf59c5e2d8feaae8d5010fc9204ef92
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/c999f3c9ebf59c5e2d8feaae8d5010fc9204ef92
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/473dda85dc87430fddfdf12ab55a05da21748069
 common --registry=https://bcr.bazel.build/
 
 # sonic-buildimage supplies checkout overrides when this repository is a submodule.
@@ -22,7 +23,6 @@ common --@sonic_swss_common//tools/bazel:yang_modules=False
 # Select the explicit local CI-DEB prototype. The caller also supplies
 # SONIC_SWSS_CI_DEBS_MANIFEST through --repo_env.
 common:ci-debs --//tools/bazel:ci_debs=True
-common:ci-debs --@sonic_swss_common//tools/bazel:cfg_schema=@sonic_ci_debs//:cfg_schema
 common:ci-debs --@sonic_swss_common//tools/bazel:yang_modules=True
 
 # The managed GCC toolchain supplies optimization and baseline hardening.

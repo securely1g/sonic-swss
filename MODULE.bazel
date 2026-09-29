@@ -22,6 +22,7 @@ bazel_dep(name = "rules_python", version = "1.7.0")
 bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_bindgen", version = "0.74.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
+bazel_dep(name = "sai", version = "1.18.0-sonic.1")
 bazel_dep(name = "tar.bzl", version = "0.10.5")
 bazel_dep(name = "toolchains_llvm", version = "1.5.0")
 bazel_dep(
@@ -35,8 +36,13 @@ bazel_dep(
     repo_name = "sonic_dash_api",
 )
 bazel_dep(
+    name = "sonic-sairedis",
+    version = "0.0.0-df4319696743f4804053ab68c5af1a2b8254dcb4",
+    repo_name = "sonic_sairedis",
+)
+bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.0-99572f5a34e7f408dee49eaf2a3ba60c5d443fb6",
+    version = "0.0.0-093a849f01722afb4730e685b3eb4f22a9bc9191",
     repo_name = "sonic_swss_common",
 )
 

@@ -51,7 +51,7 @@ MODULE_BUILD_MAPPINGS = {
         "<swss>": "component_headers",
         "<system-headers>": "managed_toolchain_and_declared_dependencies",
         "<libnl3-headers>": "@libnl3",
-        "<sai-headers>": "@sonic_ci_debs",
+        "<sai-headers>": "@sonic_sairedis",
         "<swsscommon-headers>": "@sonic_swss_common",
     },
     "source_prefix_maps": ["-fdebug-prefix-map", "-ffile-prefix-map", "-fmacro-prefix-map"],
@@ -59,7 +59,10 @@ MODULE_BUILD_MAPPINGS = {
     "toolchain_compile_options": [
         "-O2", "-fstack-protector-strong", "-fstack-clash-protection",
     ],
-    "target_toolchain_compile_options": {"x86_64": ["-fcf-protection"]},
+    "target_toolchain_compile_options": {
+        "aarch64": ["-mbranch-protection=standard"],
+        "x86_64": ["-fcf-protection"],
+    },
     "toolchain_link_options": ["-Wl,-z,relro"],
     "native_link_driver_options": [
         "-g", "-O2", "-fstack-protector-strong", "-fstack-clash-protection",
@@ -119,9 +122,9 @@ MODULE_BUILD_MAPPINGS = {
         "nl-route-3": "@libnl3//:libnl_route_3",
         "protobuf": "@swss_debian//libprotobuf-dev:libprotobuf",
         "pthread": "toolchain:libc",
-        "saimeta": "@sonic_ci_debs//:saimeta",
-        "saimetadata": "@sonic_ci_debs//:saimetadata",
-        "sairedis": "@sonic_ci_debs//:sairedis",
+        "saimeta": "@sonic_sairedis//meta:saimeta_shared",
+        "saimetadata": "@sonic_sairedis//meta:saimetadata_shared",
+        "sairedis": "@sonic_sairedis//lib:sairedis_shared",
         "swsscommon": "@sonic_swss_common//:libswsscommon_shared",
         "team": "@swss_debian//libteam-dev:libteam",
         "teamdctl": "@swss_debian//libteam-dev:libteam",
