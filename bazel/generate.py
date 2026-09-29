@@ -108,7 +108,7 @@ MODULE_BUILD_MAPPINGS = {
         },
     },
     "library_providers": {
-        "dashapi": "@sonic_ci_debs//:dashapi",
+        "dashapi": "@sonic_dash_api//:dashapi",
         "hiredis": "@trixie//libhiredis-dev:libhiredis",
         "jansson": "@swss_debian//libjansson-dev:libjansson",
         "jemalloc": "@swss_debian//libjemalloc-dev:libjemalloc",
