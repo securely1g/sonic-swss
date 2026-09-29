@@ -142,24 +142,40 @@ checks the ELF architecture, position-independent executable format, RELRO,
 and immediate symbol binding. Both architectures also execute
 `//gcovpreload:gcovpreload_test` with test-result reuse disabled, proving that
 the constructor-only preload library installs its signal handlers at startup.
-The uploaded inspection bundle contains the
-executables and a JSON receipt with their checksums and source revision.
+Each native job configures Automake, verifies the generated source map, and
+records that architecture's compiler and linker contract. The configured-rule
+comparison checks the 29 Bazel programs' sources, target options, local include
+order, and mapped dependency labels. The job also runs the pinned Buildifier
+formatting check.
 
-Run the same check in a native Debian Trixie environment after
-[preparing the pinned CI inputs](../../third_party/ci_debs/README.md):
+The uploaded inspection bundle contains the executables, build and test logs,
+the resolved module graph, both build contracts, and a JSON receipt binding
+those files to their checksums and source revision. Toolchain action details,
+external header precedence, and runtime equivalence remain outside this check.
+
+Run the same check in a native Debian Trixie environment after configuring
+Automake, recording the native contract as described in the
+[generator guide](../../bazel/README.md#compare-native-and-bazel-build-settings),
+and [preparing the pinned CI inputs](../../third_party/ci_debs/README.md):
 
 ```sh
 python3 bazel/ci_production.py build \
   --architecture amd64 \
   --manifest /absolute/path/to/swss-ci-debs/manifest.json \
+  --native-contract /absolute/path/to/native-build-contract.json \
   --artifact-directory /absolute/path/to/empty-output-directory
 ```
 
-Use `--architecture arm64` on a native ARM64 host. The generator job compares
-the tracked source map with a fresh Automake configuration. The C++ CodeQL job
-builds the same explicit targets after analyzer initialization with action
-caches disabled, then checks that every production C++ source was extracted
-under the repository source root.
+Use `--architecture arm64` on a native ARM64 host. Add `--mode clean` to use a
+fresh Bazel output base, disable action-result reuse, and run the normal process
+sandbox. The workflow supports the same mode through its `clean` input or a
+`Bazel-Clean: true` trailer on the PR head commit.
+
+The C++ CodeQL job builds the production programs and selected GCOV preload
+sources after analyzer initialization with action caches disabled. Its receipt
+requires extraction of all selected tracked sources and records additional and
+excluded source paths. It does not claim historical analyzer parity or runtime
+coverage.
 
 ## Separate runtime tar draft
 
