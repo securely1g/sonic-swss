@@ -52,6 +52,12 @@ single_version_override(
     version = "3.7.0-sonic.2",
 )
 
+# RE2's BCR metadata repair marks its legacy local C++ extension as development-only.
+single_version_override(
+    module_name = "re2",
+    version = "2024-07-02.bcr.1",
+)
+
 gcc = use_extension("@sonic_build_infra//toolchains/gcc:extensions.bzl", "gcc")
 use_repo(gcc, "gcc_toolchains")
 
