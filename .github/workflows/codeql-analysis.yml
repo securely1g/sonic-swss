@@ -83,7 +83,7 @@ jobs:
           --architecture amd64
           --output-directory "$RUNNER_TEMP/swss-ci-debs"
 
-      - name: Build and inspect production C++ programs
+      - name: Build production programs and selected C++ coverage targets
         run: >-
           python3 bazel/ci_production.py build
           --architecture amd64
@@ -98,7 +98,7 @@ jobs:
           category: "/language:cpp"
           upload-database: false
 
-      - name: Verify production source extraction
+      - name: Verify selected C++ source extraction
         shell: bash
         env:
           CODEQL: ${{ steps.init.outputs.codeql-path }}

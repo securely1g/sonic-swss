@@ -1,5 +1,5 @@
 load("//bazel:production_sources.bzl", "SWSS_PROGRAMS")
-load("//tools/bazel:cc.bzl", "swss_cc_binary", "swss_cc_library")
+load("//tools/bazel:cc.bzl", "swss_cc_binary", "swss_headers")
 load("//tools/bazel:deps.bzl", "CFGMGR_DEPS")
 
 package(default_visibility = ["//visibility:public"])
@@ -10,10 +10,9 @@ exports_files(glob([
     "*.lua",
 ]))
 
-swss_cc_library(
+swss_headers(
     name = "headers",
     hdrs = glob(["*.h"]),
-    asan = False,
     includes = ["."],
 )
 
@@ -33,10 +32,10 @@ filegroup(
 )
 
 CFGMGR_HEADERS = [
-    ":headers",
-    "//lib:headers",
-    "//orchagent:headers",
-    "//warmrestart:headers",
+    ":production_headers",
+    "//lib:production_headers",
+    "//orchagent:production_headers",
+    "//warmrestart:production_headers",
 ]
 
 swss_cc_binary(

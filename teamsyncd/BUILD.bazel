@@ -1,5 +1,5 @@
 load("//bazel:production_sources.bzl", "SWSS_PROGRAMS")
-load("//tools/bazel:cc.bzl", "swss_cc_binary", "swss_cc_library")
+load("//tools/bazel:cc.bzl", "swss_cc_binary", "swss_headers")
 load("//tools/bazel:deps.bzl", "TEAM_DEPS")
 
 package(default_visibility = ["//visibility:public"])
@@ -9,10 +9,9 @@ exports_files(glob([
     "*.h",
 ]))
 
-swss_cc_library(
+swss_headers(
     name = "headers",
     hdrs = glob(["*.h"]),
-    asan = False,
     includes = ["."],
 )
 
@@ -20,7 +19,7 @@ swss_cc_binary(
     name = "teamsyncd",
     srcs = SWSS_PROGRAMS["teamsyncd"]["sources"],
     deps = TEAM_DEPS + [
-        ":headers",
-        "//lib:headers",
+        ":production_headers",
+        "//lib:production_headers",
     ],
 )

@@ -5,6 +5,15 @@ SWSS_PROGRAMS = {
     "buffermgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/buffermgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:buffermgrd.cpp",
             "//cfgmgr:buffermgr.cpp",
@@ -18,6 +27,15 @@ SWSS_PROGRAMS = {
     "coppmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/coppmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:coppmgrd.cpp",
             "//cfgmgr:coppmgr.cpp",
@@ -30,6 +48,15 @@ SWSS_PROGRAMS = {
     "fabricmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/fabricmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:fabricmgrd.cpp",
             "//cfgmgr:fabricmgr.cpp",
@@ -42,6 +69,12 @@ SWSS_PROGRAMS = {
     "fdbsyncd": {
         "directory": "fdbsyncd",
         "install_path": "usr/bin/fdbsyncd",
+        "local_include_directories": [
+            "fdbsyncd",
+            ".",
+            ".",
+            "warmrestart"
+        ],
         "sources": [
             "//fdbsyncd:fdbsyncd.cpp",
             "//fdbsyncd:fdbsync.cpp",
@@ -51,6 +84,14 @@ SWSS_PROGRAMS = {
     "fpmsyncd": {
         "directory": "fpmsyncd",
         "install_path": "usr/bin/fpmsyncd",
+        "local_include_directories": [
+            "fpmsyncd",
+            ".",
+            ".",
+            "warmrestart",
+            "fpmsyncd",
+            "lib"
+        ],
         "sources": [
             "//fpmsyncd:fpmsyncd.cpp",
             "//fpmsyncd:fpmlink.cpp",
@@ -62,6 +103,14 @@ SWSS_PROGRAMS = {
     "gearsyncd": {
         "directory": "gearsyncd",
         "install_path": "usr/bin/gearsyncd",
+        "local_include_directories": [
+            "gearsyncd",
+            ".",
+            "lib",
+            ".",
+            "warmrestart",
+            "cfgmgr"
+        ],
         "sources": [
             "//lib:gearboxutils.cpp",
             "//gearsyncd:gearsyncd.cpp",
@@ -73,6 +122,15 @@ SWSS_PROGRAMS = {
     "intfmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/intfmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:intfmgrd.cpp",
             "//cfgmgr:intfmgr.cpp",
@@ -86,6 +144,15 @@ SWSS_PROGRAMS = {
     "macsecmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/macsecmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:macsecmgrd.cpp",
             "//cfgmgr:macsecmgr.cpp",
@@ -99,6 +166,11 @@ SWSS_PROGRAMS = {
     "mclagsyncd": {
         "directory": "mclagsyncd",
         "install_path": "usr/bin/mclagsyncd",
+        "local_include_directories": [
+            "mclagsyncd",
+            ".",
+            "."
+        ],
         "sources": [
             "//mclagsyncd:mclagsyncd.cpp",
             "//mclagsyncd:mclaglink.cpp"
@@ -107,6 +179,15 @@ SWSS_PROGRAMS = {
     "natmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/natmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:natmgrd.cpp",
             "//cfgmgr:natmgr.cpp",
@@ -119,6 +200,12 @@ SWSS_PROGRAMS = {
     "natsyncd": {
         "directory": "natsyncd",
         "install_path": "usr/bin/natsyncd",
+        "local_include_directories": [
+            "natsyncd",
+            ".",
+            ".",
+            "warmrestart"
+        ],
         "sources": [
             "//natsyncd:natsyncd.cpp",
             "//natsyncd:natsync.cpp",
@@ -128,6 +215,15 @@ SWSS_PROGRAMS = {
     "nbrmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/nbrmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:nbrmgrd.cpp",
             "//cfgmgr:nbrmgr.cpp",
@@ -140,6 +236,12 @@ SWSS_PROGRAMS = {
     "neighsyncd": {
         "directory": "neighsyncd",
         "install_path": "usr/bin/neighsyncd",
+        "local_include_directories": [
+            "neighsyncd",
+            ".",
+            ".",
+            "warmrestart"
+        ],
         "sources": [
             "//neighsyncd:neighsyncd.cpp",
             "//neighsyncd:neighsync.cpp",
@@ -149,6 +251,19 @@ SWSS_PROGRAMS = {
     "orchagent": {
         "directory": "orchagent",
         "install_path": "usr/bin/orchagent",
+        "local_include_directories": [
+            "orchagent",
+            ".",
+            "lib",
+            ".",
+            "warmrestart",
+            "orchagent/switch",
+            "orchagent/flex_counter",
+            "orchagent/debug_counter",
+            "orchagent/port",
+            "orchagent/pbh",
+            "orchagent/nhg"
+        ],
         "sources": [
             "//orchagent:main.cpp",
             "//lib:gearboxutils.cpp",
@@ -282,6 +397,19 @@ SWSS_PROGRAMS = {
     "orchagent_restart_check": {
         "directory": "orchagent",
         "install_path": "usr/bin/orchagent_restart_check",
+        "local_include_directories": [
+            "orchagent",
+            ".",
+            "lib",
+            ".",
+            "warmrestart",
+            "orchagent/switch",
+            "orchagent/flex_counter",
+            "orchagent/debug_counter",
+            "orchagent/port",
+            "orchagent/pbh",
+            "orchagent/nhg"
+        ],
         "sources": [
             "//orchagent:orchagent_restart_check.cpp"
         ]
@@ -289,6 +417,15 @@ SWSS_PROGRAMS = {
     "portmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/portmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:portmgrd.cpp",
             "//cfgmgr:portmgr.cpp",
@@ -301,6 +438,14 @@ SWSS_PROGRAMS = {
     "portsyncd": {
         "directory": "portsyncd",
         "install_path": "usr/bin/portsyncd",
+        "local_include_directories": [
+            "portsyncd",
+            ".",
+            "lib",
+            ".",
+            "warmrestart",
+            "cfgmgr"
+        ],
         "sources": [
             "//lib:gearboxutils.cpp",
             "//portsyncd:portsyncd.cpp",
@@ -310,6 +455,19 @@ SWSS_PROGRAMS = {
     "routeresync": {
         "directory": "orchagent",
         "install_path": "usr/bin/routeresync",
+        "local_include_directories": [
+            "orchagent",
+            ".",
+            "lib",
+            ".",
+            "warmrestart",
+            "orchagent/switch",
+            "orchagent/flex_counter",
+            "orchagent/debug_counter",
+            "orchagent/port",
+            "orchagent/pbh",
+            "orchagent/nhg"
+        ],
         "sources": [
             "//orchagent:routeresync.cpp",
             "//lib:orch_zmq_config.cpp"
@@ -318,6 +476,15 @@ SWSS_PROGRAMS = {
     "sflowmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/sflowmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:sflowmgrd.cpp",
             "//cfgmgr:sflowmgr.cpp",
@@ -330,6 +497,15 @@ SWSS_PROGRAMS = {
     "stpmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/stpmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:stpmgrd.cpp",
             "//cfgmgr:stpmgr.cpp",
@@ -342,6 +518,12 @@ SWSS_PROGRAMS = {
     "swssconfig": {
         "directory": "swssconfig",
         "install_path": "usr/bin/swssconfig",
+        "local_include_directories": [
+            "swssconfig",
+            ".",
+            ".",
+            "lib"
+        ],
         "sources": [
             "//swssconfig:swssconfig.cpp",
             "//lib:orch_zmq_config.cpp"
@@ -350,6 +532,12 @@ SWSS_PROGRAMS = {
     "swssplayer": {
         "directory": "swssconfig",
         "install_path": "usr/bin/swssplayer",
+        "local_include_directories": [
+            "swssconfig",
+            ".",
+            ".",
+            "lib"
+        ],
         "sources": [
             "//swssconfig:swssplayer.cpp",
             "//lib:orch_zmq_config.cpp"
@@ -358,6 +546,15 @@ SWSS_PROGRAMS = {
     "teammgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/teammgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:teammgrd.cpp",
             "//cfgmgr:teammgr.cpp",
@@ -370,6 +567,11 @@ SWSS_PROGRAMS = {
     "teamsyncd": {
         "directory": "teamsyncd",
         "install_path": "usr/bin/teamsyncd",
+        "local_include_directories": [
+            "teamsyncd",
+            ".",
+            "."
+        ],
         "sources": [
             "//teamsyncd:teamsyncd.cpp",
             "//teamsyncd:teamsync.cpp"
@@ -378,6 +580,12 @@ SWSS_PROGRAMS = {
     "tlm_teamd": {
         "directory": "tlm_teamd",
         "install_path": "usr/bin/tlm_teamd",
+        "local_include_directories": [
+            "tlm_teamd",
+            ".",
+            ".",
+            "lib"
+        ],
         "sources": [
             "//tlm_teamd:main.cpp",
             "//tlm_teamd:teamdctl_mgr.cpp",
@@ -387,6 +595,15 @@ SWSS_PROGRAMS = {
     "tunnelmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/tunnelmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:tunnelmgrd.cpp",
             "//cfgmgr:tunnelmgr.cpp",
@@ -399,6 +616,15 @@ SWSS_PROGRAMS = {
     "vlanmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/vlanmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:vlanmgrd.cpp",
             "//cfgmgr:vlanmgr.cpp",
@@ -411,6 +637,15 @@ SWSS_PROGRAMS = {
     "vrfmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/vrfmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:vrfmgrd.cpp",
             "//cfgmgr:vrfmgr.cpp",
@@ -423,6 +658,15 @@ SWSS_PROGRAMS = {
     "vxlanmgrd": {
         "directory": "cfgmgr",
         "install_path": "usr/bin/vxlanmgrd",
+        "local_include_directories": [
+            "cfgmgr",
+            ".",
+            "lib",
+            ".",
+            "orchagent",
+            "warmrestart",
+            "orchagent/flex_counter"
+        ],
         "sources": [
             "//cfgmgr:vxlanmgrd.cpp",
             "//cfgmgr:vxlanmgr.cpp",

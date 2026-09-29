@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
 from pathlib import Path
+import platform
 import shutil
 import subprocess
 import sys
@@ -59,7 +61,7 @@ class Fixture:
 
     def write_makefiles(self, team: bool) -> None:
         common = (
-            f"abs_top_srcdir = {self.source}\nCXX = g++\nEXEEXT =\n"
+            f"abs_top_srcdir = {self.source}\nCXX = g++\nEXEEXT =\nhost_cpu = {platform.machine()}\n"
             + "INSTALL_DATA = /usr/bin/install -c -m 644\ninstall_sh_DATA = ./install-sh -c -m 644\n"
         )
         (self.configured / "Makefile").write_text(
@@ -88,6 +90,13 @@ class Fixture:
 
     def render(self) -> dict[str, tuple[bytes, int]]:
         return generate.Generator(self.source, self.configured, "swss", self.vendor, self.vendor_config).render(1457553600)
+
+    def build_contract(self, package: str = "swss") -> dict:
+        generator = generate.Generator(self.source, self.configured, package)
+        generator.read_make_tree()
+        inventory = generator.production_inventory()
+        source_map = generator.module_sources(inventory).encode()
+        return generator.build_contract(inventory, hashlib.sha256(source_map).hexdigest(), "a" * 40)
 
 
 class GeneratorTest(unittest.TestCase):
@@ -136,11 +145,69 @@ class GeneratorTest(unittest.TestCase):
         self.assertIn('"//app:feature.cpp"', sources)
         self.assertIn('"install_path": "usr/bin/example"', sources)
         self.assertIn('"source": "app/data.lua"', sources)
+        programs = json.JSONDecoder().raw_decode(sources.split("SWSS_PROGRAMS = ", 1)[1])[0]
+        self.assertEqual(programs["example"]["local_include_directories"], ["app", "app", ".", "."])
+
+    def test_module_sources_detect_local_include_order_and_class_drift(self) -> None:
+        baseline = self.fixture.render()["production_sources.bzl"][0]
+        makefile = self.fixture.configured / "app/Makefile"
+        original = makefile.read_text()
+        makefile.write_text(original.replace("-I. -I$(top_srcdir)/app -I..", "-I.. -I$(top_srcdir)/app -I."))
+        self.assertNotEqual(baseline, self.fixture.render()["production_sources.bzl"][0])
+        makefile.write_text(original.replace("-I. -I$(top_srcdir)/app -I..", "-isystem . -I$(top_srcdir)/app -I.."))
+        with self.assertRaisesRegex(ValueError, "local module include class needs an explicit mapping"):
+            self.fixture.render()
+
+    def test_build_contract_records_flags_and_normalizes_configured_roots(self) -> None:
+        contract = self.fixture.build_contract()
+        relocated = Fixture(Path(self.temporary.name) / "relocated")
+        self.assertEqual(contract, relocated.build_contract("alternate/swss"))
+        self.assertEqual(contract["architecture"], {
+            "execution_machine": platform.machine(),
+            "configured_target_cpus": [platform.machine()],
+        })
+        profile = contract["programs"]["example"]["compile_profile"]
+        options = contract["compile_profiles"][profile]
+        self.assertIn({"argument": "-I<swss>/app", "classification": "include"}, options)
+        self.assertIn({"argument": "-ffile-prefix-map=<swss>=.", "classification": "source_prefix_map"}, options)
+        self.assertIn({"argument": "-DEXAMPLE", "classification": "literal"}, options)
+        self.assertIn({"argument": "-DHAVE_CONFIG_H", "classification": "native_only"}, options)
+        self.assertNotIn(str(self.fixture.source), json.dumps(contract))
+        self.assertNotIn(str(self.fixture.configured), json.dumps(contract))
+
+    def test_build_contract_exposes_compile_and_link_drift(self) -> None:
+        baseline = self.fixture.build_contract()
+        makefile = self.fixture.configured / "app/Makefile"
+        original = makefile.read_text()
+        makefile.write_text(original.replace("CPPFLAGS = -DGLOBAL", "CPPFLAGS = -DGLOBAL -DNEW_FEATURE=1"))
+        compile_change = self.fixture.build_contract()
+        self.assertEqual(baseline["source_map_sha256"], compile_change["source_map_sha256"])
+        self.assertNotEqual(baseline["compile_profiles"], compile_change["compile_profiles"])
+        profile = compile_change["programs"]["example"]["compile_profile"]
+        self.assertIn({"argument": "-DNEW_FEATURE=1", "classification": "literal"}, compile_change["compile_profiles"][profile])
+
+        makefile.write_text(original.replace("example_LDADD = -lm", "example_LDADD = -lpthread"))
+        link_change = self.fixture.build_contract()
+        self.assertEqual(baseline["source_map_sha256"], link_change["source_map_sha256"])
+        self.assertNotEqual(baseline["link_profiles"], link_change["link_profiles"])
+        profile = link_change["programs"]["example"]["link_profile"]
+        self.assertIn({"argument": "-lpthread", "classification": "library"}, link_change["link_profiles"][profile])
+
+    def test_build_contract_requires_declared_path_and_library_mappings(self) -> None:
+        makefile = self.fixture.configured / "app/Makefile"
+        original = makefile.read_text()
+        makefile.write_text(original + "CPPFLAGS += -I/opt/feature/include\n")
+        with self.assertRaisesRegex(ValueError, "native path has no module build-contract mapping"):
+            self.fixture.build_contract()
+        makefile.write_text(original.replace("example_LDADD = -lm", "example_LDADD = -lfeature"))
+        with self.assertRaisesRegex(ValueError, "native library has no module build-contract provider"):
+            self.fixture.build_contract()
 
     def test_check_production_sources_without_cargo_or_package(self) -> None:
         expected = self.fixture.render()["production_sources.bzl"][0]
         checked_in = self.fixture.source / "bazel/production_sources.bzl"
         checked_in.write_bytes(expected)
+        contract_path = Path(self.temporary.name) / "artifacts/native-build-contract.json"
         shutil.rmtree(self.fixture.vendor)
         self.fixture.vendor_config.unlink()
         command = [
@@ -149,10 +216,17 @@ class GeneratorTest(unittest.TestCase):
             "--source", str(self.fixture.source),
             "--configured-build", str(self.fixture.configured),
             "--check-production-sources", str(checked_in),
+            "--output-build-contract", str(contract_path),
+            "--git-revision", "a" * 40,
         ]
         result = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(self.fixture.output.exists())
+        contract_bytes = contract_path.read_bytes()
+        contract = json.loads(contract_bytes)
+        self.assertEqual(contract["schema_version"], 1)
+        self.assertEqual(contract["git_revision"], "a" * 40)
+        self.assertEqual(contract["source_map_sha256"], hashlib.sha256(expected).hexdigest())
 
         makefile = self.fixture.configured / "app/Makefile"
         makefile.write_text(makefile.read_text().replace("main.cpp base.cpp common.h", "base.cpp main.cpp common.h"))
@@ -160,6 +234,7 @@ class GeneratorTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("does not match configured Automake production sources", result.stderr)
         self.assertEqual(checked_in.read_bytes(), expected)
+        self.assertEqual(contract_path.read_bytes(), contract_bytes)
         self.assertFalse(self.fixture.output.exists())
 
     def test_synchronization_preserves_unchanged_files_and_removes_stale_inputs(self) -> None:

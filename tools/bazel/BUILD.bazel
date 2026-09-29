@@ -5,7 +5,7 @@ load("@rules_rust_bindgen//:defs.bzl", "rust_bindgen_toolchain")
 
 package(default_visibility = ["//visibility:public"])
 
-exports_files(["run_cc_test.sh"] + glob(["patches/*.patch"]))
+exports_files(["run_cc_test.sh"])
 
 bool_flag(
     name = "ci_debs",
