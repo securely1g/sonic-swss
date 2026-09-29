@@ -1,4 +1,7 @@
-/** Lists C++ translation units under the analyzed source root. */
+/**
+ * Lists observed C++ translation units under the analyzed source root.
+ * The receipt records selected tracked sources and additional observed paths.
+ */
 import cpp
 
 from File file

@@ -10,7 +10,7 @@ exports_files(["sample/netbouncer.json"])
     swss_cc_binary(
         name = name,
         srcs = SWSS_PROGRAMS[name]["sources"],
-        deps = SWSS_DEPS + ["//lib:headers"],
+        deps = SWSS_DEPS + ["//lib:production_headers"],
     )
     for name in [
         "swssconfig",

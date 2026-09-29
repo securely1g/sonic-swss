@@ -14,6 +14,7 @@ import io
 import json
 import os
 from pathlib import Path, PurePosixPath
+import platform
 import re
 import shlex
 import stat
@@ -32,6 +33,101 @@ CXX_SUFFIXES = {".cc", ".cpp", ".cxx", ".C"}
 IGNORED_DIRECTORIES = {".git", ".deps", ".libs", "target", "autom4te.cache", "__pycache__"}
 PRIMARY = re.compile(r"^((?:(?:dist|nodist|nobase)_)*)([A-Za-z][A-Za-z0-9_]*)_(PROGRAMS|DATA|SCRIPTS|HEADERS|LIBRARIES|LTLIBRARIES)$")
 RESERVED_TARGETS = {"headers", "countersyncd"}
+MODULE_INCLUDE_ROOTS = {
+    "/usr/include": "<system-headers>",
+    "/usr/include/libnl3": "<libnl3-headers>",
+    "/usr/include/sai": "<sai-headers>",
+    "/usr/include/swss": "<swsscommon-headers>",
+}
+# These mappings describe the selected normal-release module contract. Options
+# absent from these classifications remain literal requirements for the Bazel
+# configured-rule comparison; the generator does not discard unfamiliar flags.
+MODULE_BUILD_MAPPINGS = {
+    "reviewed_infra": {
+        "module": "sonic-build-infra",
+        "version": "0.0.7-91fe8246519f99838da936eee54e85208c704a4d",
+    },
+    "include_roots": {
+        "<swss>": "component_headers",
+        "<system-headers>": "managed_toolchain_and_declared_dependencies",
+        "<libnl3-headers>": "@libnl3",
+        "<sai-headers>": "@sonic_ci_debs",
+        "<swsscommon-headers>": "@sonic_swss_common",
+    },
+    "source_prefix_maps": ["-fdebug-prefix-map", "-ffile-prefix-map", "-fmacro-prefix-map"],
+    "native_only_compile_options": ["-DHAVE_CONFIG_H"],
+    "toolchain_compile_options": [
+        "-O2", "-fstack-protector-strong", "-fstack-clash-protection",
+    ],
+    "target_toolchain_compile_options": {"x86_64": ["-fcf-protection"]},
+    "toolchain_link_options": ["-Wl,-z,relro"],
+    "native_link_driver_options": [
+        "-g", "-O2", "-fstack-protector-strong", "-fstack-clash-protection",
+        "-Wformat", "-Werror=format-security",
+    ],
+    "compile_replacements": {
+        "-D_FORTIFY_SOURCE=2": ["-U_FORTIFY_SOURCE", "-D_FORTIFY_SOURCE=3"],
+        "-Wformat": ["-Wformat=2"],
+        "-Werror=format-security": ["-Werror"],
+    },
+    "bazel_only_compile_options": ["-Wno-missing-include-dirs"],
+    # Recorded under the reviewed infra boundary, not inspected in cquery.
+    "reviewed_toolchain_additional_link_options": ["-Wl,-z,now", "-Wl,--as-needed"],
+    "implicit_system_header_providers": {
+        "all_programs": [
+            "@trixie//libboost-dev:libboost",
+            "@trixie//nlohmann-json3-dev:nlohmann-json3",
+        ],
+        "programs": {"orchagent": ["@swss_debian//libyaml-cpp-dev:libyaml-cpp"]},
+    },
+    "local_header_providers": [
+        "//cfgmgr:production_headers",
+        "//fdbsyncd:production_headers",
+        "//fpmsyncd:production_headers",
+        "//gearsyncd:production_headers",
+        "//lib:production_headers",
+        "//mclagsyncd:production_headers",
+        "//natsyncd:production_headers",
+        "//neighsyncd:production_headers",
+        "//orchagent:production_headers",
+        "//portsyncd:production_headers",
+        "//teamsyncd:production_headers",
+        "//tlm_teamd:production_headers",
+        "//warmrestart:production_headers",
+    ],
+    "rule_support_providers": ["@rules_cc//:link_extra_lib"],
+    "feature_support": {
+        "debug": {"source_labels": [], "dependency_labels": []},
+        "asan": {
+            "source_labels": ["//lib:asan.cpp", "//lib:asan_ctor.cpp"],
+            "dependency_labels": [],
+        },
+        "gcov": {
+            "source_labels": ["//gcovpreload:gcovpreload.cpp"],
+            "dependency_labels": ["//gcovpreload:gcovpreload_shared"],
+        },
+    },
+    "library_providers": {
+        "dashapi": "@sonic_ci_debs//:dashapi",
+        "hiredis": "@trixie//libhiredis-dev:libhiredis",
+        "jansson": "@swss_debian//libjansson-dev:libjansson",
+        "jemalloc": "@swss_debian//libjemalloc-dev:libjemalloc",
+        "m": "toolchain:libm",
+        "nl-3": "@libnl3//:libnl_3",
+        "nl-genl-3": "@libnl3//:libnl_genl_3",
+        "nl-nf-3": "@libnl3//:libnl_nf_3",
+        "nl-route-3": "@libnl3//:libnl_route_3",
+        "protobuf": "@swss_debian//libprotobuf-dev:libprotobuf",
+        "pthread": "toolchain:libc",
+        "saimeta": "@sonic_ci_debs//:saimeta",
+        "saimetadata": "@sonic_ci_debs//:saimetadata",
+        "sairedis": "@sonic_ci_debs//:sairedis",
+        "swsscommon": "@sonic_swss_common//:libswsscommon_shared",
+        "team": "@swss_debian//libteam-dev:libteam",
+        "teamdctl": "@swss_debian//libteam-dev:libteam",
+        "zmq": "@trixie//libzmq3-dev:libzmq3",
+    },
+}
 
 
 def relative_path(value: str) -> PurePosixPath:
@@ -86,7 +182,7 @@ def query_make(directory: Path) -> dict[str, tuple[str, str]]:
         output = work / "variables"
         variables = " ".join(
             [
-                "SUBDIRS top_srcdir abs_top_srcdir top_builddir abs_top_builddir",
+                "SUBDIRS top_srcdir abs_top_srcdir top_builddir abs_top_builddir host_cpu",
                 "DEFS DEFAULT_INCLUDES INCLUDES CPPFLAGS CFLAGS CXXFLAGS LDFLAGS LIBS LDADD",
                 "AM_CPPFLAGS AM_CFLAGS AM_CXXFLAGS AM_LDFLAGS CC CXX EXEEXT BUILT_SOURCES",
                 "CFLAGS_COMMON",
@@ -144,6 +240,7 @@ class Generator:
         self.headers: set[str] = set()
         self.subdirectories: list[str] = []
         self.compilers: set[str] = set()
+        self.target_cpus: set[str] = set()
         self.vendor_archive = b""
         self.vendor_file_count = 0
         self.cargo_config = b""
@@ -302,6 +399,8 @@ class Generator:
             self.subdirectories.append(directory)
             if value(variables, "CXX"):
                 self.compilers.add(value(variables, "CXX"))
+            if value(variables, "host_cpu"):
+                self.target_cpus.add(value(variables, "host_cpu"))
             for child in shlex.split(value(variables, "SUBDIRS")):
                 child_path = (PurePosixPath(directory) / child)
                 relative_path(child_path.as_posix())
@@ -432,11 +531,36 @@ class Generator:
             parts = relative_path(name).parts
             return "//" + parts[0] + ":" + "/".join(parts[1:]) if len(parts) > 1 else "//:" + parts[0]
 
+        def local_include_directories(program: dict[str, Any]) -> list[str]:
+            source_root = self.package + "/src"
+            result = []
+            options = program["compile_options"]
+            index = 0
+            while index < len(options):
+                option = options[index]
+                for prefix in ("-isystem", "-iquote", "-idirafter", "-I"):
+                    if option == prefix:
+                        index += 1
+                        path = options[index]
+                    elif option.startswith(prefix) and len(option) > len(prefix):
+                        path = option[len(prefix):]
+                    else:
+                        continue
+                    if path == source_root or path.startswith(source_root + "/"):
+                        if prefix != "-I":
+                            raise ValueError(f"local module include class needs an explicit mapping for {program['name']}: {prefix}")
+                        relative = path[len(source_root):].removeprefix("/")
+                        result.append(relative_path(relative).as_posix() if relative else ".")
+                    break
+                index += 1
+            return result
+
         programs = {
             program["name"]: {
                 "directory": program["directory"],
                 "sources": [source_label(name) for name in program["sources"]],
                 "install_path": program["install_path"],
+                "local_include_directories": local_include_directories(program),
             }
             for program in inventory["programs"]
         }
@@ -450,6 +574,106 @@ class Generator:
             "",
         ]
         return "\n".join(lines)
+
+    def build_contract(self, inventory: dict[str, Any], source_map_sha256: str, git_revision: str) -> dict[str, Any]:
+        """Describe this runner's native release options for Bazel comparison."""
+        def normalized_path(path: str, include: bool = False) -> str:
+            source_root = self.package + "/src"
+            if path == source_root or path.startswith(source_root + "/"):
+                return "<swss>" + path[len(source_root):]
+            if include and path in MODULE_INCLUDE_ROOTS:
+                return MODULE_INCLUDE_ROOTS[path]
+            raise ValueError(f"native path has no module build-contract mapping: {path}")
+
+        def normalized_options(options: list[str], link: bool) -> list[dict[str, str]]:
+            result = []
+            index = 0
+            target_options = {
+                option
+                for values in MODULE_BUILD_MAPPINGS["target_toolchain_compile_options"].values()
+                for option in values
+            }
+            while index < len(options):
+                option = options[index]
+                argument = option
+                classification = "literal"
+                for prefix in ("-isystem", "-iquote", "-idirafter", "-I", "-L"):
+                    if option == prefix:
+                        index += 1
+                        path = options[index]
+                    elif option.startswith(prefix) and len(option) > len(prefix):
+                        path = option[len(prefix):]
+                    else:
+                        continue
+                    if prefix == "-L":
+                        raise ValueError(f"native library search path has no module build-contract mapping: {path}")
+                    argument = prefix + normalized_path(path, include=True)
+                    classification = "include"
+                    break
+                else:
+                    prefix_map = re.match(r"^(-f(?:debug|file|macro)-prefix-map=)([^=]+)=(.*)$", option)
+                    if prefix_map:
+                        if Path(prefix_map[3]).is_absolute():
+                            raise ValueError(f"native prefix-map destination has no module build-contract mapping: {prefix_map[3]}")
+                        argument = prefix_map[1] + normalized_path(prefix_map[2]) + "=" + prefix_map[3]
+                        classification = "source_prefix_map"
+                    elif link and option.startswith("-l"):
+                        if option[2:] not in MODULE_BUILD_MAPPINGS["library_providers"]:
+                            raise ValueError(f"native library has no module build-contract provider: {option}")
+                        classification = "library"
+                    elif link and Path(option).is_absolute():
+                        raise ValueError(f"native link input has no module build-contract provider: {option}")
+                    elif link and option in MODULE_BUILD_MAPPINGS["native_link_driver_options"]:
+                        classification = "native_link_driver"
+                    elif link and option in target_options:
+                        classification = "target_native_link_driver"
+                    elif link and option in MODULE_BUILD_MAPPINGS["toolchain_link_options"]:
+                        classification = "toolchain"
+                    elif not link and option in MODULE_BUILD_MAPPINGS["native_only_compile_options"]:
+                        classification = "native_only"
+                    elif not link and option in MODULE_BUILD_MAPPINGS["compile_replacements"]:
+                        classification = "replacement"
+                    elif not link and option in MODULE_BUILD_MAPPINGS["toolchain_compile_options"]:
+                        classification = "toolchain"
+                    elif not link and option in target_options:
+                        classification = "target_toolchain"
+                result.append({"argument": argument, "classification": classification})
+                index += 1
+            return result
+
+        def option_profiles(key: str, link: bool) -> tuple[dict[str, list[dict[str, str]]], dict[str, str]]:
+            profiles: dict[str, list[dict[str, str]]] = {}
+            references = {}
+            for program in inventory["programs"]:
+                options = normalized_options(program[key], link)
+                profile = next((name for name, existing in profiles.items() if existing == options), None)
+                if profile is None:
+                    profile = program["name"]
+                    profiles[profile] = options
+                references[program["name"]] = profile
+            return profiles, references
+
+        compile_profiles, compile_references = option_profiles("compile_options", False)
+        link_profiles, link_references = option_profiles("link_options", True)
+        return {
+            "schema_version": 1,
+            "git_revision": git_revision,
+            "source_map_sha256": source_map_sha256,
+            "architecture": {
+                "execution_machine": platform.machine(),
+                "configured_target_cpus": sorted(self.target_cpus),
+            },
+            "compile_profiles": compile_profiles,
+            "link_profiles": link_profiles,
+            "mappings": MODULE_BUILD_MAPPINGS,
+            "programs": {
+                program["name"]: {
+                    "compile_profile": compile_references[program["name"]],
+                    "link_profile": link_references[program["name"]],
+                }
+                for program in inventory["programs"]
+            },
+        }
 
     def build_file(self, inventory: dict[str, Any]) -> str:
         def assignment(name: str, item: Any) -> list[str]:
@@ -569,19 +793,32 @@ def main() -> None:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--output-package", type=Path)
     mode.add_argument("--check-production-sources", type=Path, metavar="FILE")
+    parser.add_argument("--output-build-contract", type=Path, metavar="FILE")
+    parser.add_argument("--git-revision")
     parser.add_argument("--cargo-vendor", type=Path)
     parser.add_argument("--cargo-vendor-config", type=Path)
     parser.add_argument("--workspace-package", default="swss")
     parser.add_argument("--source-date-epoch", type=int)
     args = parser.parse_args()
+    if args.output_build_contract is not None:
+        if args.check_production_sources is None or args.git_revision is None:
+            parser.error("--output-build-contract requires --check-production-sources and --git-revision")
+    elif args.git_revision is not None:
+        parser.error("--git-revision requires --output-build-contract")
     source = args.source.resolve()
     configured = args.configured_build.resolve()
     if args.check_production_sources is not None:
         generator = Generator(source, configured, args.workspace_package)
         generator.read_make_tree()
-        generated = generator.module_sources(generator.production_inventory()).encode()
+        inventory = generator.production_inventory()
+        generated = generator.module_sources(inventory).encode()
         if args.check_production_sources.read_bytes() != generated:
             parser.exit(1, f"{args.check_production_sources} does not match configured Automake production sources\n")
+        if args.output_build_contract is not None:
+            contract = generator.build_contract(inventory, hashlib.sha256(generated).hexdigest(), args.git_revision)
+            args.output_build_contract.parent.mkdir(parents=True, exist_ok=True)
+            args.output_build_contract.write_text(json.dumps(contract, indent=2, sort_keys=True) + "\n")
+            print(f"Wrote normalized native build contract to {args.output_build_contract}")
         print(f"{args.check_production_sources} matches configured Automake production sources")
         return
     if args.cargo_vendor is None or args.cargo_vendor_config is None:

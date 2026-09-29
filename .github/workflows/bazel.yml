@@ -2,6 +2,11 @@ name: Bazel
 
 on:
   workflow_dispatch:
+    inputs:
+      clean:
+        description: Rebuild native outputs without action result cache reuse
+        type: boolean
+        default: false
   pull_request:
     branches: [master]
   push:
@@ -33,13 +38,52 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            binutils build-essential ca-certificates git python3 tar
+            autoconf autoconf-archive automake autotools-dev binutils \
+            build-essential ca-certificates debhelper git libhiredis-dev \
+            libjansson-dev libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev \
+            libnl-route-3-dev libteam-dev libtool pkg-config python3 tar
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
 
       - name: Configure Git for the container checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Run generator unit tests
+        run: python3 -m unittest discover -s bazel/tests -v
+
+      - name: Configure the native production source selection
+        run: |
+          ./autogen.sh
+          debian/rules override_dh_auto_configure
+
+      - name: Check the production source map and record native settings
+        run: >-
+          python3 bazel/generate.py
+          --source "$GITHUB_WORKSPACE"
+          --configured-build "$GITHUB_WORKSPACE"
+          --check-production-sources bazel/production_sources.bzl
+          --output-build-contract "$RUNNER_TEMP/native-build-contract.json"
+          --git-revision "$(git rev-parse HEAD)"
+
+      # A Bazel-Clean: true trailer on the PR head commit also selects a clean
+      # build while this workflow is not yet available on the default branch.
+      - name: Select native build cache mode
+        id: build_mode
+        shell: bash
+        env:
+          CLEAN_INPUT: ${{ inputs.clean || false }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          commit_trailers="$(git show -s --format=%B "$CI_HEAD_SHA" | git interpret-trailers --parse)"
+          build_mode=normal
+          if [[ "$CLEAN_INPUT" == "true" ]] || grep -Eq '^Bazel-Clean:[[:space:]]*true[[:space:]]*$' <<< "$commit_trailers"; then
+            build_mode=clean
+          fi
+          printf 'mode=%s\n' "$build_mode" >> "$GITHUB_OUTPUT"
+          printf 'Native build mode: %s (head %s)\n' "$build_mode" "$CI_HEAD_SHA"
 
       - name: Set up Bazel
         uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
@@ -49,6 +93,12 @@ jobs:
           repository-cache: true
           disk-cache: swss-production-${{ matrix.architecture }}
           cache-version: "8.5.1"
+
+      - name: Check Bazel formatting
+        run: >-
+          bazel run --lockfile_mode=off
+          --platforms=@sonic_build_infra//platforms:${{ matrix.platform }}
+          //tools/bazel/buildifier:buildifier.check
 
       - name: Prepare verified CI dependencies
         run: >-
@@ -61,14 +111,9 @@ jobs:
           python3 bazel/ci_production.py build
           --architecture ${{ matrix.architecture }}
           --manifest "$RUNNER_TEMP/swss-ci-debs/manifest.json"
+          --native-contract "$RUNNER_TEMP/native-build-contract.json"
           --artifact-directory artifacts/production
-
-      - name: Verify constructor-only GCOV preload retention
-        run: >-
-          bazel test --config=release --lockfile_mode=off
-          --platforms=@sonic_build_infra//platforms:${{ matrix.platform }}
-          --nocache_test_results --test_output=errors --jobs=4
-          //gcovpreload:gcovpreload_test
+          --mode ${{ steps.build_mode.outputs.mode }}
 
       - name: Upload C++ build outputs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -76,36 +121,3 @@ jobs:
           name: sonic-swss-cpp-${{ matrix.architecture }}
           path: artifacts/production/
           if-no-files-found: error
-
-  generator:
-    name: Bazel generator synchronization
-    runs-on: ubuntu-24.04
-    container: debian:trixie-20260918@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c
-    timeout-minutes: 20
-    steps:
-      - name: Install configure tools and libraries
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            autoconf autoconf-archive automake autotools-dev build-essential \
-            ca-certificates debhelper git libhiredis-dev libjansson-dev \
-            libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev libnl-route-3-dev \
-            libteam-dev libtool pkg-config python3
-
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Run generator unit tests
-        run: python3 -m unittest discover -s bazel/tests -v
-
-      - name: Configure the native production source selection
-        run: |
-          ./autogen.sh
-          debian/rules override_dh_auto_configure
-
-      - name: Check the production source map
-        run: >-
-          python3 bazel/generate.py
-          --source "$GITHUB_WORKSPACE"
-          --configured-build "$GITHUB_WORKSPACE"
-          --check-production-sources bazel/production_sources.bzl

@@ -1,5 +1,5 @@
 load("//bazel:production_sources.bzl", "SWSS_PROGRAMS")
-load("//tools/bazel:cc.bzl", "swss_cc_binary", "swss_cc_library")
+load("//tools/bazel:cc.bzl", "swss_cc_binary", "swss_headers")
 load("//tools/bazel:deps.bzl", "ORCHAGENT_DEPS", "SWSS_DEPS")
 
 package(default_visibility = ["//visibility:public"])
@@ -13,13 +13,12 @@ exports_files(glob(
     exclude = ["p4orch/tests/**"],
 ))
 
-swss_cc_library(
+swss_headers(
     name = "headers",
     hdrs = glob(
         ["**/*.h"],
         exclude = ["p4orch/tests/**"],
     ),
-    asan = False,
     includes = [
         ".",
         "buffer",
@@ -65,10 +64,10 @@ filegroup(
 )
 
 ORCHAGENT_HEADERS = [
-    ":headers",
-    "//cfgmgr:headers",
-    "//lib:headers",
-    "//warmrestart:headers",
+    ":production_headers",
+    "//cfgmgr:production_headers",
+    "//lib:production_headers",
+    "//warmrestart:production_headers",
 ]
 
 swss_cc_binary(

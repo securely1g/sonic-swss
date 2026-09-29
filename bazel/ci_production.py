@@ -16,6 +16,7 @@ import shutil
 import stat
 import struct
 import subprocess
+import sys
 import tempfile
 from typing import Any
 
@@ -23,6 +24,13 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_MAP = ROOT / "bazel/production_sources.bzl"
 AGGREGATE = "//dist:cpp_binaries"
+GCOV_PRELOAD_TEST = "//gcovpreload:gcovpreload_test"
+CODEQL_COMPILE_TARGETS = [GCOV_PRELOAD_TEST]
+NATIVE_TEST_TARGETS = [GCOV_PRELOAD_TEST]
+CODEQL_TEST_SOURCES = {"gcovpreload/gcovpreload_test.cpp"}
+CODEQL_FEATURE_SOURCES = {"gcovpreload/gcovpreload.cpp"}
+FEATURE_SOURCE_BOUNDARIES = CODEQL_FEATURE_SOURCES | {"lib/asan.cpp", "lib/asan_ctor.cpp"}
+NATIVE_SOURCE_SUFFIXES = (".c", ".cc", ".cpp", ".cxx")
 ARCHITECTURES = {
     "amd64": ("x86_64", 62, "@sonic_build_infra//platforms:x86_64_trixie"),
     "arm64": ("aarch64", 183, "@sonic_build_infra//platforms:aarch64_trixie"),
@@ -73,6 +81,19 @@ def program_labels(programs: dict[str, dict[str, Any]]) -> dict[str, str]:
     }
 
 
+def tracked_paths(paths: set[str]) -> set[str]:
+    for path in paths:
+        relative_path(path)
+        source = ROOT / path
+        if not source.is_file() or not source.resolve().is_relative_to(ROOT):
+            raise ValueError(f"source is missing or leaves the checkout: {path}")
+    tracked = set(subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode().split("\0"))
+    missing = sorted(paths - tracked)
+    if missing:
+        raise ValueError(f"sources are not tracked by Git: {missing}")
+    return paths
+
+
 def tracked_source_paths(programs: dict[str, dict[str, Any]]) -> set[str]:
     paths = set()
     for program in programs.values():
@@ -82,15 +103,13 @@ def tracked_source_paths(programs: dict[str, dict[str, Any]]) -> set[str]:
                 raise ValueError(f"production source must be a local file label: {label}")
             package, name = match.groups()
             path = relative_path((PurePosixPath(package) / name).as_posix())
-            source = ROOT / path
-            if not source.is_file() or not source.resolve().is_relative_to(ROOT):
-                raise ValueError(f"production source is missing or leaves the checkout: {path}")
             paths.add(path)
-    tracked = set(subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode().split("\0"))
-    missing = sorted(paths - tracked)
-    if missing:
-        raise ValueError(f"production sources are not tracked by Git: {missing}")
-    return paths
+    return tracked_paths(paths)
+
+
+def tracked_native_source_paths() -> set[str]:
+    tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode().split("\0")
+    return {path for path in tracked if path.endswith(NATIVE_SOURCE_SUFFIXES)}
 
 
 def inspect_elf(path: Path, machine: int) -> dict[str, Any]:
@@ -165,8 +184,26 @@ def parse_cquery(contents: str, labels: set[str]) -> dict[str, list[str]]:
     return outputs
 
 
-def run(command: list[str], *, capture: bool = False) -> str:
-    print("+ " + shlex.join(command), flush=True)
+def run(command: list[str], *, capture: bool = False, log: Path | None = None) -> str:
+    display_command = "+ " + shlex.join(command)
+    print(display_command, flush=True)
+    if log is not None:
+        if capture:
+            raise ValueError("captured commands cannot also write a build log")
+        with log.open("w") as stream:
+            stream.write(display_command + "\n")
+            process = subprocess.Popen(
+                command, cwd=ROOT, text=True, encoding="utf-8", errors="replace",
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            )
+            assert process.stdout is not None
+            for line in process.stdout:
+                print(line, end="", flush=True)
+                stream.write(line)
+            returncode = process.wait()
+        if returncode:
+            raise subprocess.CalledProcessError(returncode, command)
+        return ""
     result = subprocess.run(command, cwd=ROOT, check=True, text=True, stdout=subprocess.PIPE if capture else None)
     return result.stdout or ""
 
@@ -181,6 +218,13 @@ def build(args: argparse.Namespace) -> None:
     manifest = args.manifest.resolve(strict=True)
     if not manifest.is_file():
         raise ValueError(f"CI DEB manifest is not a file: {manifest}")
+    native_contract = None
+    if args.mode != "codeql":
+        if args.native_contract is None:
+            raise ValueError("native builds require --native-contract")
+        native_contract = args.native_contract.resolve(strict=True)
+        if not native_contract.is_file():
+            raise ValueError(f"native build contract is not a file: {native_contract}")
     artifact_directory = args.artifact_directory.resolve()
     if artifact_directory.exists() and any(artifact_directory.iterdir()):
         raise ValueError(f"artifact directory must be empty: {artifact_directory}")
@@ -191,6 +235,7 @@ def build(args: argparse.Namespace) -> None:
     labels = program_labels(programs)
     source_map_sha256 = sha256(SOURCE_MAP)
     manifest_sha256 = sha256(manifest)
+    native_contract_sha256 = sha256(native_contract) if native_contract is not None else None
     bazel_version = (ROOT / ".bazelversion").read_text().strip()
     if run([args.bazel, "--version"], capture=True).strip() != f"bazel {bazel_version}":
         raise ValueError(f"CI requires Bazel {bazel_version}")
@@ -205,15 +250,11 @@ def build(args: argparse.Namespace) -> None:
         "--curses=no",
     ]
     bazel = [args.bazel]
-    if args.mode == "codeql":
-        output_base = tempfile.mkdtemp(prefix="swss-codeql-bazel-", dir=os.environ.get("RUNNER_TEMP"))
+    fresh_output_base = args.mode in ("clean", "codeql")
+    if fresh_output_base:
+        output_base = tempfile.mkdtemp(prefix=f"swss-{args.mode}-bazel-", dir=os.environ.get("RUNNER_TEMP"))
         bazel += [f"--output_base={output_base}", "--batch"]
         options += [
-            "--jobs=2",
-            "--spawn_strategy=local",
-            # Local tracing exposes GCC's undeclared include-fixed directory.
-            # Keep C++ compilation on the toolchain's explicit header paths.
-            "--cxxopt=-nostdinc",
             "--nouse_action_cache",
             "--noremote_accept_cached",
             "--noremote_upload_local_results",
@@ -221,12 +262,91 @@ def build(args: argparse.Namespace) -> None:
             "--remote_cache=",
             "--remote_executor=",
         ]
+    if args.mode == "codeql":
+        options += ["--jobs=2", "--spawn_strategy=local"]
     else:
         options += ["--jobs=4"]
+        if args.mode == "clean":
+            options += ["--spawn_strategy=processwrapper-sandbox"]
 
     requested = list(labels.values()) + [AGGREGATE]
-    run(bazel + ["build"] + options + requested)
+    additional_compile_targets = CODEQL_COMPILE_TARGETS if args.mode == "codeql" else []
+    build_log = artifact_directory / "build.log"
+    run(bazel + ["build"] + options + requested + additional_compile_targets, log=build_log)
+
+    if args.mode == "codeql":
+        runtime_tests = {
+            "targets": [],
+            "status": "not_run",
+            "reason": "CodeQL compiles the selected GCOV preload test for extraction without executing it.",
+        }
+    else:
+        native_test_log = artifact_directory / "native-tests.log"
+        run(
+            bazel + ["test"] + options + ["--nocache_test_results", "--test_output=errors"] + NATIVE_TEST_TARGETS,
+            log=native_test_log,
+        )
+        runtime_tests = {
+            "targets": NATIVE_TEST_TARGETS,
+            "status": "passed",
+            "output_base_and_action_cache_policy": "same_as_build",
+            "test_result_reuse": "disabled",
+            "log": {"artifact": native_test_log.name, "sha256": sha256(native_test_log)},
+        }
+
+    module_graph = run(
+        bazel + [
+            "mod", "graph", "--lockfile_mode=off",
+            f"--platforms={target_platform}",
+            "--output=json", "--verbose", "--noshow_progress", "--color=no", "--curses=no",
+        ],
+        capture=True,
+    )
+    module_graph_data = json.loads(module_graph)
+    if not isinstance(module_graph_data, dict) or not module_graph_data:
+        raise ValueError("Bazel returned an empty or invalid resolved module graph")
+    module_graph_path = artifact_directory / "module-graph.json"
+    module_graph_path.write_text(json.dumps(module_graph_data, indent=2, sort_keys=True) + "\n")
+
     expression = "set(" + " ".join(requested) + ")"
+    configured_rules_path = None
+    native_contract_path = None
+    if native_contract is not None:
+        from compare_build_contract import cquery_expression
+        from generate import MODULE_BUILD_MAPPINGS
+
+        universe_scope = list(labels.values())
+        query = cquery_expression(programs, MODULE_BUILD_MAPPINGS)
+        configured_rules = json.loads(run(
+            bazel + ["cquery"] + options + [
+                query,
+                "--universe_scope=" + ",".join(universe_scope),
+                "--noimplicit_deps", "--notool_deps", "--consistent_labels", "--output=jsonproto",
+            ],
+            capture=True,
+        ))
+        if not isinstance(configured_rules, dict) or not configured_rules.get("results"):
+            raise ValueError("Bazel returned empty or invalid configured production rules")
+        repository_mapping = json.loads(run(
+            bazel + [
+                "mod", "dump_repo_mapping", "", "--lockfile_mode=off",
+                "--noshow_progress", "--color=no", "--curses=no",
+            ],
+            capture=True,
+        ))
+        if not isinstance(repository_mapping, dict):
+            raise ValueError("Bazel returned an invalid root repository mapping")
+        configured_rules_path = artifact_directory / "configured-rules.json"
+        configured_rules_path.write_text(json.dumps({
+            "schema_version": 1,
+            "query": query,
+            "universe_scope": universe_scope,
+            "root_repository_mapping": repository_mapping,
+            "cquery": configured_rules,
+        }, separators=(",", ":")) + "\n")
+        native_contract_path = artifact_directory / "native-build-contract.json"
+        shutil.copy2(native_contract, native_contract_path)
+
     output = run(
         bazel + ["cquery"] + options + [
             expression,
@@ -245,15 +365,19 @@ def build(args: argparse.Namespace) -> None:
         raise ValueError("//dist:cpp_binaries outputs do not match the explicit production programs")
     if sha256(SOURCE_MAP) != source_map_sha256 or sha256(manifest) != manifest_sha256:
         raise ValueError("the production source map or CI DEB manifest changed during the build")
+    if native_contract is not None and (
+        sha256(native_contract) != native_contract_sha256 or sha256(native_contract_path) != native_contract_sha256
+    ):
+        raise ValueError("the native build contract changed during the build")
 
     receipts = []
-    if args.mode == "normal":
+    if args.mode != "codeql":
         (artifact_directory / "bin").mkdir()
     for name, label in labels.items():
         output_path = outputs[label][0]
         receipt = {"name": name, "label": label, "bazel_output": output_path}
         receipt.update(inspect_elf(ROOT / output_path, machine))
-        if args.mode == "normal":
+        if args.mode != "codeql":
             destination = artifact_directory / "bin" / name
             shutil.copy2(ROOT / output_path, destination)
             if sha256(destination) != receipt["sha256"]:
@@ -262,23 +386,66 @@ def build(args: argparse.Namespace) -> None:
         receipts.append(receipt)
 
     receipt = {
-        "schema_version": 1,
+        "schema_version": 2,
         "artifact_type": "cpp_executables",
+        "build_mode": args.mode,
+        "cache_policy": {
+            "fresh_output_base": fresh_output_base,
+            "action_result_reuse": "disabled" if fresh_output_base else "allowed",
+            "repository_download_reuse": "allowed",
+            "spawn_strategy": {
+                "codeql": "local",
+                "clean": "processwrapper-sandbox",
+                "normal": "native_default",
+            }[args.mode],
+        },
         "architecture": args.architecture,
         "target_platform": target_platform,
         "bazel_version": bazel_version,
         "git_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "source_map_sha256": source_map_sha256,
+        "dependency_provider_mode": "ci_debs",
         "ci_debs_manifest_sha256": manifest_sha256,
+        "build_log": {"artifact": build_log.name, "sha256": sha256(build_log)},
+        "module_graph": {"artifact": module_graph_path.name, "sha256": sha256(module_graph_path)},
+        "additional_compile_targets": additional_compile_targets,
+        "runtime_tests": runtime_tests,
         "source_files": sorted(sources),
         "programs": receipts,
     }
-    (artifact_directory / "manifest.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    if configured_rules_path is not None:
+        receipt["configured_rules"] = {"artifact": configured_rules_path.name, "sha256": sha256(configured_rules_path)}
+        receipt["native_contract"] = {"artifact": native_contract_path.name, "sha256": native_contract_sha256}
+    receipt_path = artifact_directory / "manifest.json"
+    receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    if configured_rules_path is not None:
+        run([
+            sys.executable, str(ROOT / "bazel/compare_build_contract.py"),
+            "--architecture", args.architecture,
+            "--native-contract", str(native_contract_path),
+            "--configured-rules", str(configured_rules_path),
+            "--build-receipt", str(receipt_path),
+            "--output", str(artifact_directory / "native-contract-check.json"),
+        ])
     print(f"Verified {len(receipts)} production C++ executables and {len(sources)} tracked source files")
 
 
 def check_codeql(args: argparse.Namespace) -> None:
-    expected = tracked_source_paths(load_programs())
+    selected = {
+        "production": tracked_source_paths(load_programs()),
+        "tests": tracked_paths(CODEQL_TEST_SOURCES),
+        "features": tracked_paths(CODEQL_FEATURE_SOURCES),
+    }
+    expected = set().union(*selected.values())
+    if sum(len(paths) for paths in selected.values()) != len(expected):
+        raise ValueError("selected CodeQL source categories overlap")
+    native_sources = tracked_native_source_paths()
+    test_sources = {
+        path for path in native_sources
+        if path.startswith("tests/") or "/tests/" in path
+        or re.search(r"_test\.(?:c|cc|cpp|cxx)$", path)
+    }
+    feature_sources = native_sources & FEATURE_SOURCE_BOUNDARIES
     observed = set()
     with args.csv.open(newline="") as stream:
         reader = csv.DictReader(stream)
@@ -290,17 +457,49 @@ def check_codeql(args: argparse.Namespace) -> None:
             observed.add(relative_path(row["path"]))
     missing = sorted(expected - observed)
     receipt = {
+        "schema_version": 2,
         "source_map_sha256": sha256(SOURCE_MAP),
+        "additional_compile_targets": CODEQL_COMPILE_TARGETS,
+        "selected_source_files": {name: sorted(paths) for name, paths in selected.items()},
         "expected_source_files": sorted(expected),
+        "observed_source_files": sorted(observed),
+        "observed_sources_not_in_tracked_native_inventory": sorted(observed - native_sources),
         "observed_source_file_count": len(observed),
         "matched_source_file_count": len(expected) - len(missing),
         "missing_source_files": missing,
+        "additional_observed_source_files": sorted(observed - expected),
+        "excluded_source_files": {
+            "tests": sorted(test_sources - selected["tests"]),
+            "features": sorted(feature_sources - selected["features"]),
+            "other_native": sorted(native_sources - expected - test_sources - feature_sources),
+        },
+        "native_source_inventory": {
+            "scope": "Tracked native source paths in this checkout.",
+            "suffixes": list(NATIVE_SOURCE_SUFFIXES),
+            "test_path_rule": "A tests directory component or a filename ending in _test followed by a native source suffix.",
+            "feature_paths": sorted(FEATURE_SOURCE_BOUNDARIES),
+        },
+        "exclusion_note": "Excluded files are not validated by this job; exclusion does not classify them as unsupported.",
+        "generated_source_reporting": {
+            "selected_source_requirement": "All selected SWSS translation units must be tracked source files.",
+            "generation_status_of_tracked_sources": "not_classified",
+            "outside_source_root_reporting": "not_verified",
+        },
+        "sarif_source_reporting": "not_verified_by_this_extraction_receipt",
+        "historical_coverage_comparison": {
+            "status": "not_performed",
+            "reason": "This check has no prior-pipeline source inventory.",
+        },
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     if missing:
-        raise ValueError(f"CodeQL did not extract production C++ sources: {missing}")
-    print(f"CodeQL extracted all {len(expected)} tracked production C++ source files")
+        raise ValueError(f"CodeQL did not extract selected C++ sources: {missing}")
+    print(
+        f"CodeQL extracted all {len(expected)} selected C++ source files "
+        f"({len(selected['production'])} production, {len(selected['tests'])} test, "
+        f"{len(selected['features'])} feature)"
+    )
 
 
 def main() -> None:
@@ -309,8 +508,9 @@ def main() -> None:
     build_parser = commands.add_parser("build")
     build_parser.add_argument("--architecture", choices=ARCHITECTURES, required=True)
     build_parser.add_argument("--manifest", type=Path, required=True)
+    build_parser.add_argument("--native-contract", type=Path)
     build_parser.add_argument("--artifact-directory", type=Path, required=True)
-    build_parser.add_argument("--mode", choices=("normal", "codeql"), default="normal")
+    build_parser.add_argument("--mode", choices=("normal", "clean", "codeql"), default="normal")
     build_parser.add_argument("--bazel", default="bazel")
     coverage_parser = commands.add_parser("check-codeql")
     coverage_parser.add_argument("--csv", type=Path, required=True)
