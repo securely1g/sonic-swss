@@ -7,6 +7,7 @@ common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-regis
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/c999f3c9ebf59c5e2d8feaae8d5010fc9204ef92
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/473dda85dc87430fddfdf12ab55a05da21748069
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/482c2b1699423ab19c700f0e0ea8e2adb5915e27
 common --registry=https://bcr.bazel.build/
 
 # sonic-buildimage supplies checkout overrides when this repository is a submodule.
@@ -18,6 +19,10 @@ common:aarch64 --platforms=@sonic_build_infra//platforms:aarch64_trixie
 
 # Build Common's YANG C++ sources and generate its schema from declared inputs.
 common --@sonic_swss_common//tools/bazel:yang_modules=True
+
+# Rust 1.90 mangles allocator symbols. The cc_common linker needs the
+# compiler-generated allocator library supplied by rules_rust.
+build --@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=True
 
 # The managed GCC toolchain supplies optimization and baseline hardening.
 build:release --compilation_mode=opt

@@ -4,8 +4,9 @@ This directory generates Bazel C++ and Cargo targets from a configured SWSS
 tree. It also emits `production_sources.bzl` for the module targets in this
 repository. The configured Automake files remain the source of truth for
 program selection, source membership, flags, and installed data.
-The module's standalone Rust and runtime targets remain drafts. The normal
-C++ validation below does not assess Cargo, Rust, or runtime completion.
+The module also provides standalone Rust and runtime/debug package targets;
+see [their build and validation instructions](../tools/bazel/README.md).
+The normal C++ validation below does not assess Cargo, Rust, or runtime completion.
 
 ## Generate C++ and Cargo targets
 
@@ -253,7 +254,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.7-91fe8246519f99838da936eee54e85208c704a4d",
+    version = "0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d",
     repo_name = "sonic_build_infra",
 )
 
@@ -293,6 +294,7 @@ common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-regis
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/c999f3c9ebf59c5e2d8feaae8d5010fc9204ef92
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/473dda85dc87430fddfdf12ab55a05da21748069
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/482c2b1699423ab19c700f0e0ea8e2adb5915e27
 common --registry=https://bcr.bazel.build/
 common --lockfile_mode=off
 common --noincompatible_disallow_empty_glob
@@ -308,7 +310,7 @@ libnl3, Distroless, DASH, Common, SAI, and sairedis entries. The root libnl3
 override prevents historical dotted versions requested by dependencies from
 winning version resolution.
 Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2` and
-`sonic-build-infra@0.0.7-91fe8246519f99838da936eee54e85208c704a4d` are selected.
+`sonic-build-infra@0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d` are selected.
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
 RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
 `-Wdate-time` and `_FORTIFY_SOURCE=3` override.
