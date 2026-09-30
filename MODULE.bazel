@@ -24,7 +24,9 @@ bazel_dep(name = "rules_rust_bindgen", version = "0.74.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "sai", version = "1.18.0-sonic.1")
 bazel_dep(name = "tar.bzl", version = "0.10.5")
-bazel_dep(name = "toolchains_llvm", version = "1.5.0")
+
+bazel_dep(name = "toolchains_llvm", version = "1.5.0", dev_dependency = True)
+
 bazel_dep(
     name = "sonic-build-infra",
     version = "0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d",
@@ -95,16 +97,22 @@ use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")
 
-llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
+# Bindgen toolchain selection belongs to the consuming root. This LLVM
+# selection is for standalone builds only.
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)
 llvm.toolchain(llvm_version = "17.0.6")
 use_repo(llvm, "llvm_toolchain_llvm")
 
-register_toolchains("//tools/bazel:bindgen_toolchain")
+register_toolchains(
+    "//tools/bazel/rust/dev:bindgen_toolchain",
+    dev_dependency = True,
+)
 
 crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 crate.from_cargo(
     name = "crates",
     cargo_lockfile = "//:Cargo.lock",
+    lockfile = "//:Cargo.Bazel.lock",
     manifests = ["//:Cargo.toml"],
     skip_cargo_lockfile_overwrite = True,
     supported_platform_triples = [

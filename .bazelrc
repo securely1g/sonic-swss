@@ -20,6 +20,10 @@ common:aarch64 --platforms=@sonic_build_infra//platforms:aarch64_trixie
 # Build Common's YANG C++ sources and generate its schema from declared inputs.
 common --@sonic_swss_common//tools/bazel:yang_modules=True
 
+# Rust 1.90 mangles allocator symbols. The cc_common linker needs the
+# compiler-generated allocator library supplied by rules_rust.
+build --@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=True
+
 # The managed GCC toolchain supplies optimization and baseline hardening.
 build:release --compilation_mode=opt
 
