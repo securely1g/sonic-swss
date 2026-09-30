@@ -5,6 +5,10 @@ with configured Automake inputs and records native build settings for CI.
 Normal `bazel build` commands read the checked-in map and component BUILD files;
 they do not run this script or require an Automake configuration step.
 
+The module also provides standalone Rust and runtime/debug package targets;
+see [their build and validation instructions](../tools/bazel/README.md).
+The native C++ comparison below does not assess Rust or runtime completion.
+
 ## Configure the native source inventory
 
 Run the commands below from the SWSS repository root in a native Linux build
