@@ -4,8 +4,9 @@ This directory generates Bazel C++ and Cargo targets from a configured SWSS
 tree. It also emits `production_sources.bzl` for the module targets in this
 repository. The configured Automake files remain the source of truth for
 program selection, source membership, flags, and installed data.
-The module's standalone Rust and runtime targets remain drafts. The normal
-C++ validation below does not assess Cargo, Rust, or runtime completion.
+The module also provides standalone Rust and runtime/debug package targets;
+see [their build and validation instructions](../tools/bazel/README.md).
+The normal C++ validation below does not assess Cargo, Rust, or runtime completion.
 
 ## Generate C++ and Cargo targets
 
