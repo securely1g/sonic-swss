@@ -75,7 +75,7 @@ for normal C++ builds.
 ## Build commands
 
 The repository's ordered immutable registries select `sonic-build-infra
-0.0.7-91fe8246519f99838da936eee54e85208c704a4d`, `libnl3 3.7.0-sonic.2`, and
+0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d`, `libnl3 3.7.0-sonic.2`, and
 the declared Distroless, DASH, Common, SAI, and sairedis modules, followed by
 BCR. The canonical caller guide includes the same registry order.
 `MODULE.bazel` overrides libnl3's version because historical dotted version
