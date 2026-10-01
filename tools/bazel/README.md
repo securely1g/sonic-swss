@@ -255,6 +255,22 @@ Cache service deployment is independent of these SWSS build targets. See
 [Bazel remote caching](https://bazel.build/remote/caching) for supported
 backends and configuration.
 
+## Package pull request CI
+
+Bazel and CodeQL also run for pull requests targeting the stacked `bazel-bzlmod`
+branch. Each native AMD64/ARM64 production job builds both runtime and detached
+symbol targets, then checks all 65 installed files and 30 ELF/debug pairs,
+including C++ and Rust source lookup with GDB. The package validation is part of
+the required production check, so a failed package build or inspection prevents
+that check from passing. The production GCOV preload runtime test remains in
+the same job; CodeQL keeps its existing selected C++ and Python coverage.
+
+The `sonic-swss-packages-amd64` and `sonic-swss-packages-arm64` artifacts contain
+the runtime tar, matching symbols, validation report, resolved module graph,
+build log, and a manifest with the tested revision, native architecture, target
+platform, and file hashes. These source-owned tars do not establish full daemon
+runtime or installed-image behavior.
+
 ## Source Protobuf runtime validation
 
 SWSS and DASH share the source-built Protobuf 3.21.12 runtime from
