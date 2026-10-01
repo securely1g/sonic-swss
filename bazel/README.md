@@ -253,7 +253,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.7-91fe8246519f99838da936eee54e85208c704a4d",
+    version = "0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d",
     repo_name = "sonic_build_infra",
 )
 
@@ -293,6 +293,7 @@ common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-regis
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/c999f3c9ebf59c5e2d8feaae8d5010fc9204ef92
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/473dda85dc87430fddfdf12ab55a05da21748069
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/805f6669493f8783371e36f15b79101cf09498db
 common --registry=https://bcr.bazel.build/
 common --lockfile_mode=off
 common --noincompatible_disallow_empty_glob
@@ -306,12 +307,18 @@ Keep these immutable registries in the same order as the SWSS `.bazelrc`, with
 BCR as the final fallback. Together they provide the selected build-infra,
 libnl3, Distroless, DASH, Common, SAI, and sairedis entries. The root libnl3
 override prevents historical dotted versions requested by dependencies from
-winning version resolution.
+winning version resolution. The final SONiC snapshot adds infrastructure 0.0.9
+while the earlier snapshots preserve the selected dependency definitions.
 Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2` and
-`sonic-build-infra@0.0.7-91fe8246519f99838da936eee54e85208c704a4d` are selected.
+`sonic-build-infra@0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d` are selected.
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
 RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
-`-Wdate-time` and `_FORTIFY_SOURCE=3` override.
+`-Wdate-time` and `_FORTIFY_SOURCE=3` override. Infrastructure source
+[`c4175cb`](https://github.com/securely1g/sonic-build-infra/commit/c4175cb61c79b3b7b70901724fddbe2cd35ff86d)
+also supplies `-Wl,-rpath-link=/lib/<multiarch>` for link-time dependency lookup;
+this does not embed an ELF runtime search path. The reviewed contract records
+this architecture-specific setting. The unused opt-in `as_needed` feature alias
+was removed upstream; the default `--as-needed` argument remains enabled.
 The caller disables lockfile use for this registry iteration. The Common flag
 enables its YANG C++ sources; this Common version generates the configuration
 schema from source inputs.

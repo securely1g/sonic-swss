@@ -1,12 +1,13 @@
 common --check_direct_dependencies=off
 common --noincompatible_disallow_empty_glob
 
-# Keep the selected build-infra, libnl3, and Distroless inputs, then resolve
-# the dependency-owned DASH, Common, SAI, and sairedis modules.
+# Preserve the existing dependency definitions; the final SONiC snapshot adds
+# the current build-infra version without replacing those historical modules.
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/2f4012b01f7a73f24b12de64a0a9ae86a06b0e89
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/c999f3c9ebf59c5e2d8feaae8d5010fc9204ef92
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/473dda85dc87430fddfdf12ab55a05da21748069
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/805f6669493f8783371e36f15b79101cf09498db
 common --registry=https://bcr.bazel.build/
 
 # sonic-buildimage supplies checkout overrides when this repository is a submodule.
