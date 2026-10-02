@@ -22,6 +22,10 @@ provides declared header inputs without changing search order. Shared C++
 sources compile separately for each program; ASAN and GCOV startup sources are
 selected by the existing configuration flags.
 
+The module also provides standalone Rust and runtime/debug package targets;
+see [their build and validation instructions](../tools/bazel/README.md).
+The native C++ comparison below does not assess Rust or runtime completion.
+
 ## Configure the native source inventory
 
 Run the commands below from the SWSS repository root in a native Linux build
