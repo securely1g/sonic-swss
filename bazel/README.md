@@ -293,7 +293,7 @@ Put `8.5.1` in the caller's `.bazelversion` and add these settings to its
 
 ```text
 common --check_direct_dependencies=off
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/codex/protobuf-312-integration
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main
 common --registry=https://bcr.bazel.build/
 common --lockfile_mode=update
 common --noincompatible_disallow_empty_glob
@@ -304,9 +304,9 @@ build:release --compilation_mode=opt
 ```
 
 Use the same single SONiC registry branch as SWSS `.bazelrc`, followed by BCR.
-The reviewed `codex/protobuf-312-integration` branch contains the exact selected
-build-infra, libnl3, Distroless, DASH, Common, SAI and sairedis registrations.
-Protobuf is available on registry `main`; the DASH entry remains proposed in
+The maintained `main` branch contains the exact selected build-infra, libnl3,
+Distroless, DASH, Common, SAI, sairedis and Protobuf registrations. The DASH
+entry landed through
 [registry #19](https://github.com/securely1g/sonic-bazel-registry/pull/19).
 DASH version `0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069` selects the
 landed source commit on its maintained `master` branch. CI and local commands

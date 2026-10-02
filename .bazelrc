@@ -3,7 +3,7 @@ common --noincompatible_disallow_empty_glob
 
 # One reviewed registry branch provides the proposed DASH entry.
 # Keep module versions, source checksums and toolchain inputs pinned.
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/codex/protobuf-312-integration
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main
 common --registry=https://bcr.bazel.build/
 
 # sonic-buildimage supplies checkout overrides when this repository is a submodule.
