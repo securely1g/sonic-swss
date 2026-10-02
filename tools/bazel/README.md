@@ -174,8 +174,11 @@ fresh Bazel output base, disable action-result reuse, and run the normal process
 sandbox. The workflow supports the same mode through its `clean` input or a
 `Bazel-Clean: true` trailer on the PR head commit.
 
-The C++ CodeQL job builds the production programs and selected GCOV preload
-sources after analyzer initialization with action caches disabled. Its tracing
+The C++ CodeQL job builds the production programs, selected GCOV preload
+sources, and the DASH/Protobuf runtime test after analyzer initialization with
+action caches disabled. The test programs are compiled without executing them;
+packaging remains in native CI. The extraction receipt requires both native
+test source files alongside the production sources. Its tracing
 configuration excludes only SAI's locked tool preparation action, which starts
 no compiler, so CodeQL's preload does not enter that action's strict runtime
 dependency check. SAI metadata and SWSS sources compile in separate Bazel

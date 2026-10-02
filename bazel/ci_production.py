@@ -25,9 +25,10 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE_MAP = ROOT / "bazel/production_sources.bzl"
 AGGREGATE = "//dist:cpp_binaries"
 GCOV_PRELOAD_TEST = "//gcovpreload:gcovpreload_test"
-CODEQL_COMPILE_TARGETS = [GCOV_PRELOAD_TEST]
-NATIVE_TEST_TARGETS = [GCOV_PRELOAD_TEST, "//bazel:protobuf_runtime_test"]
-CODEQL_TEST_SOURCES = {"gcovpreload/gcovpreload_test.cpp"}
+PROTOBUF_RUNTIME_TEST = "//bazel:protobuf_runtime_test"
+CODEQL_COMPILE_TARGETS = [GCOV_PRELOAD_TEST, PROTOBUF_RUNTIME_TEST]
+NATIVE_TEST_TARGETS = [GCOV_PRELOAD_TEST, PROTOBUF_RUNTIME_TEST]
+CODEQL_TEST_SOURCES = {"gcovpreload/gcovpreload_test.cpp", "bazel/protobuf_runtime_test.cpp"}
 CODEQL_FEATURE_SOURCES = {"gcovpreload/gcovpreload.cpp"}
 FEATURE_SOURCE_BOUNDARIES = CODEQL_FEATURE_SOURCES | {"lib/asan.cpp", "lib/asan_ctor.cpp"}
 NATIVE_SOURCE_SUFFIXES = (".c", ".cc", ".cpp", ".cxx")
@@ -272,7 +273,7 @@ def build(args: argparse.Namespace) -> None:
         runtime_tests = {
             "targets": [],
             "status": "not_run",
-            "reason": "CodeQL compiles the selected GCOV preload test for extraction without executing it.",
+            "reason": "CodeQL compiles the selected native tests for extraction without executing them.",
         }
     else:
         native_test_log = artifact_directory / "native-tests.log"
