@@ -265,6 +265,10 @@ single_version_override(
     version = "3.7.0-sonic.2",
 )
 single_version_override(
+    module_name = "rules_distroless",
+    version = "0.9.4-sonic.1",
+)
+single_version_override(
     module_name = "re2",
     version = "2024-07-02.bcr.1",
 )
@@ -294,6 +298,7 @@ common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-regis
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/c999f3c9ebf59c5e2d8feaae8d5010fc9204ef92
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/473dda85dc87430fddfdf12ab55a05da21748069
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/805f6669493f8783371e36f15b79101cf09498db
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/02cc786838e5decb9e919ae7a53607e292dc07c6
 common --registry=https://bcr.bazel.build/
 common --lockfile_mode=off
 common --noincompatible_disallow_empty_glob
@@ -305,11 +310,14 @@ build:release --compilation_mode=opt
 
 Keep these immutable registries in the same order as the SWSS `.bazelrc`, with
 BCR as the final fallback. Together they provide the selected build-infra,
-libnl3, Distroless, DASH, Common, SAI, and sairedis entries. The root libnl3
-override prevents historical dotted versions requested by dependencies from
-winning version resolution. The final SONiC snapshot adds infrastructure 0.0.9
-while the earlier snapshots preserve the selected dependency definitions.
-Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2` and
+libnl3, Distroless, DASH, Common, SAI, and sairedis entries. The root libnl3 and
+Distroless overrides prevent higher-sorting dependency
+requests from replacing the selected SONiC fixes. Distroless
+`0.9.4-sonic.1` retains protobuf include fragments on AMD64 and ARM64. The last
+two SONiC snapshots add infrastructure 0.0.9 and this header fix while the
+earlier snapshots preserve the other dependency definitions.
+Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2`,
+`rules_distroless@0.9.4-sonic.1`, and
 `sonic-build-infra@0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d` are selected.
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
 RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific

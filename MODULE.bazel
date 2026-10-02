@@ -16,7 +16,7 @@ bazel_dep(name = "googletest", version = "1.11.0", repo_name = "com_google_googl
 bazel_dep(name = "libnl3", version = "3.7.0-sonic.2")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.16")
-bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.2")
+bazel_dep(name = "rules_distroless", version = "0.9.4-sonic.1")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_python", version = "1.7.0")
 bazel_dep(name = "rules_rust", version = "0.74.0")
@@ -50,6 +50,12 @@ bazel_dep(
 single_version_override(
     module_name = "libnl3",
     version = "3.7.0-sonic.2",
+)
+
+# Stock and historical dotted releases sort above the native protobuf fix.
+single_version_override(
+    module_name = "rules_distroless",
+    version = "0.9.4-sonic.1",
 )
 
 # RE2's BCR metadata repair marks its legacy local C++ extension as development-only.

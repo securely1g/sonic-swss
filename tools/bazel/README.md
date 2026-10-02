@@ -75,15 +75,16 @@ for normal C++ builds.
 ## Build commands
 
 The repository's ordered immutable registries select `sonic-build-infra
-0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d`, `libnl3 3.7.0-sonic.2`, and
-the declared Distroless, DASH, Common, SAI, and sairedis modules, followed by
-BCR. The canonical caller guide includes the same registry order.
-`MODULE.bazel` overrides libnl3's version because historical dotted version
-requests from dependencies would otherwise outrank the new release. It also
+0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d`, `libnl3 3.7.0-sonic.2`,
+`rules_distroless 0.9.4-sonic.1`, and the declared DASH, Common, SAI, and sairedis
+modules, followed by BCR. The canonical caller guide includes the same registry order.
+`MODULE.bazel` overrides libnl3 and Distroless versions because higher-sorting
+dependency requests would otherwise replace the selected SONiC fixes. Distroless
+retains protobuf include fragments on AMD64 and ARM64. The module also
 selects RE2 `2024-07-02.bcr.1`, whose BCR metadata repair marks its obsolete
 local C++ extension as a development dependency while retaining the same source
-archive. External root callers need both overrides for this selection, as shown
-in the canonical caller guide.
+archive. External root callers need all three overrides for this selection, as
+shown in the canonical caller guide.
 
 Run these commands from the repository root.
 
