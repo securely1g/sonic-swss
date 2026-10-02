@@ -4,6 +4,7 @@
 *.lo
 *.o
 *.pyc
+MODULE.bazel.lock
 
 # Packaging Files #
 ###################
@@ -107,3 +108,7 @@ orchagent/p4orch/tests/*_tr.xml
 
 build-env/.env
 build-env/custom-setup.sh
+
+# Bazel outputs and local configuration
+/bazel-*
+/.bazelrc.user
