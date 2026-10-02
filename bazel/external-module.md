@@ -115,6 +115,42 @@ This target selects all 29 C++ programs. Build a single program with:
 bazel build --config=release @sonic_swss//orchagent:orchagent
 ```
 
+## Rust and package callers
+
+Building `countersyncd` or the SWSS runtime package also needs a bindgen toolchain
+registered by the consuming root. Standalone SWSS selects LLVM 17.0.6 and
+bindgen 0.71.1; use [tools/bazel/rust/dev/BUILD.bazel](../tools/bazel/rust/dev/BUILD.bazel)
+as the example toolchain definition. Declare the toolchain's dependencies in
+your root module and register your root's bindgen target. SWSS's LLVM selection
+and bindgen registration are development-only because the LLVM module extension
+requires the root module; they do not propagate to external callers.
+
+Rust 1.90 with the C++ linker also requires the following root build option.
+Declare `rules_rust` directly in the caller (SWSS uses version `0.74.0`) so its
+repository name is available, and add this to the caller's `.bazelrc`:
+
+```text
+build --@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=True
+```
+
+The standalone SWSS `.bazelrc` already sets this option. SWSS supplies
+[Cargo.Bazel.lock](../Cargo.Bazel.lock) for Bazel's crate metadata and retains
+[Cargo.lock](../Cargo.lock) as the source dependency lock. Refresh Bazel metadata
+from that lock in the standalone SWSS workspace with
+`--repo_env=CARGO_BAZEL_REPIN=1` when needed.
+
+After registering the managed GCC and bindgen toolchains and applying the
+root settings, build from the caller workspace:
+
+```sh
+bazel build --config=release @sonic_swss//crates/countersyncd:countersyncd
+bazel build --config=release @sonic_swss//dist:swss_pkg @sonic_swss//dist:swss_pkg.debug_symbols
+```
+
+See the [maintainer guide](../tools/bazel/README.md#rust-and-runtimedebug-packages)
+for the package payload and the [CI guide](README.md#runtime-and-debug-package-validation)
+for validation commands and scope.
+
 ## Dependency interfaces
 
 The C++ module uses these public interfaces for programs and tests:

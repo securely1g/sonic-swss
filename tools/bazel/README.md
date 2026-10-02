@@ -21,8 +21,14 @@ bazel build --config=release //orchagent:orchagent
 # Build all C++ programs on an ARM64 host.
 bazel build --config=release --config=aarch64 //dist:cpp_binaries
 
-# Print a built program's output path.
-bazel cquery --config=release //orchagent:orchagent --output=files
+# Build the Rust program.
+bazel build --config=release //crates/countersyncd:countersyncd
+
+# Build the runtime tar and its matching detached debug symbols.
+bazel build --config=release //dist:swss_pkg //dist:swss_pkg.debug_symbols
+
+# Print an artifact's output path using the same build configuration.
+bazel cquery --config=release //dist:swss_pkg --output=files
 ```
 
 Building SWSS from another workspace needs root-module toolchain registration
@@ -110,21 +116,32 @@ library retains its startup constructor with `--as-needed`. These flags do not
 instrument Rust, matching the native build's separate Cargo invocation. The
 normal-release CI contract does not validate DEBUG, ASAN or GCOV settings.
 
-## Rust and runtime tar drafts
+## Rust and runtime/debug packages
 
-These targets remain separate draft migration scope:
+`//crates/countersyncd:countersyncd` uses `rules_rust`, bindgen and Clang.
+[Cargo.Bazel.lock](../../Cargo.Bazel.lock) records crate metadata needed by
+external module callers; [Cargo.lock](../../Cargo.lock) remains the source
+dependency lock. To refresh Bazel metadata from it, build in the standalone
+SWSS workspace with `--repo_env=CARGO_BAZEL_REPIN=1`. External callers must also
+supply the [Rust toolchain and root settings](../../bazel/external-module.md#rust-and-package-callers).
 
-```sh
-bazel build --config=release //crates/countersyncd:countersyncd
-bazel build --config=release //dist:swss_pkg
-```
+`//dist:swss_pkg` contains 29 C++ programs, `countersyncd`, two Python helpers,
+32 Lua files and `netbouncer.json`, at the paths from Automake and
+`debian/swss.install`. [dist/BUILD.bazel](../../dist/BUILD.bazel) declares the
+program and data lists, including the three VS Lua names that install Mellanox
+implementations. Keep these lists in sync when adding installed files.
 
-`countersyncd` uses `rules_rust`, bindgen and Clang. `//dist:swss_pkg` (also
-available as `//:swss_pkg`) contains the 29 C++ programs, `countersyncd`, two
-Python helpers, 32 Lua files and `netbouncer.json`, installed at the paths from
-Automake and `debian/swss.install`. It has no Debian control metadata,
-maintainer scripts or dependency declarations. The consuming image must supply
-the matching shared libraries; the tar contains only the SWSS payload.
+`//dist:swss_pkg.debug_symbols` contains matching detached symbols under
+`usr/lib/debug/.build-id`. Both tars are split from the same linked ELFs. The
+shared rule retains C++ debug information without changing optimization mode;
+Rust targets retain source-line information explicitly. Root aliases
+`//:swss_pkg` and `//:swss_pkg.debug_symbols` select the same outputs. The runtime
+target carries `DebugSymbolsInfo` so consuming OCI images can collect symbols.
+
+The tar has no Debian control metadata, maintainer scripts or dependency
+declarations. It contains the SWSS payload; the consuming image must provide
+matching shared libraries. See the [package validation guide](../../bazel/README.md#runtime-and-debug-package-validation)
+for installed-file, debug-symbol and runtime checks and their limits.
 
 ## Dependency resolution and caching
 
