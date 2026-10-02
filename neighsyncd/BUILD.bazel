@@ -1,0 +1,26 @@
+load("//bazel:production_sources.bzl", "SWSS_PROGRAMS")
+load("//tools/bazel:cc.bzl", "swss_cc_binary", "swss_headers")
+load("//tools/bazel:deps.bzl", "SWSS_DEPS")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(glob([
+    "*.cpp",
+    "*.h",
+]) + ["restore_neighbors.py"])
+
+swss_headers(
+    name = "headers",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+)
+
+swss_cc_binary(
+    name = "neighsyncd",
+    srcs = SWSS_PROGRAMS["neighsyncd"]["sources"],
+    deps = SWSS_DEPS + [
+        ":production_headers",
+        "//lib:production_headers",
+        "//warmrestart:production_headers",
+    ],
+)

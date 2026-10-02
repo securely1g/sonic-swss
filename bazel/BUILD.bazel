@@ -1,0 +1,24 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("//tools/bazel:deps.bzl", "ORCHAGENT_DEPS")
+load(":runtime_libraries.bzl", "runtime_libraries")
+
+exports_files([
+    "production_sources.bzl",
+])
+
+# Exercise the same shared dependency closure as orchagent without starting its
+# Redis/SAI daemon initialization. Both DASH and SWSS use one Protobuf runtime.
+cc_test(
+    name = "protobuf_runtime_test",
+    srcs = ["protobuf_runtime_test.cpp"],
+    linkopts = [
+        "-Wl,--no-as-needed",
+        "-ldl",
+    ],
+    deps = ORCHAGENT_DEPS,
+)
+
+runtime_libraries(
+    name = "orchagent_runtime_libraries",
+    deps = ORCHAGENT_DEPS,
+)

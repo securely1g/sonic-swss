@@ -1,0 +1,19 @@
+load("//bazel:production_sources.bzl", "SWSS_PROGRAMS")
+load("//tools/bazel:cc.bzl", "swss_cc_binary")
+load("//tools/bazel:deps.bzl", "SWSS_DEPS")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["sample/netbouncer.json"])
+
+[
+    swss_cc_binary(
+        name = name,
+        srcs = SWSS_PROGRAMS[name]["sources"],
+        deps = SWSS_DEPS + ["//lib:production_headers"],
+    )
+    for name in [
+        "swssconfig",
+        "swssplayer",
+    ]
+]

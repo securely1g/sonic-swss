@@ -1,0 +1,258 @@
+# SWSS Bazel generator
+
+This directory generates Bazel C++ and Cargo targets from a configured SWSS
+tree. It also emits `production_sources.bzl` for the module targets in this
+repository. The configured Automake files remain the source of truth for
+program selection, source membership, flags, and installed data.
+The module's standalone Rust and runtime targets remain drafts. The normal
+C++ validation below does not assess Cargo, Rust, or runtime completion.
+
+## Generate C++ and Cargo targets
+
+Run the generator inside the same prepared `sonic-slave` environment that will
+run Bazel. The source tree must contain the local SWSS changes and the configured
+tree must come from that source. An in-source configured tree is supported.
+Prepare the locked dependency sources before generation. `cargo vendor` writes
+its source replacement configuration to standard output.
+
+```sh
+cargo vendor --locked --versioned-dirs /work/target/bazel/cargo-vendor \
+  > /work/target/bazel/cargo-vendor.toml
+python3 bazel/generate.py \
+  --source /work/inputs/sonic-swss \
+  --configured-build /work/inputs/sonic-swss \
+  --cargo-vendor /work/target/bazel/cargo-vendor \
+  --cargo-vendor-config /work/target/bazel/cargo-vendor.toml \
+  --output-package /work/target/bazel/workspace/swss
+```
+
+The vendor and output directories must be outside the source and configured
+trees. The generator owns the output directory, preserves unchanged files, and
+removes stale generated inputs. It refuses to replace a nonempty directory
+without its ownership marker. Generated build files contain workspace-relative
+source paths. For the public `fpmsyncd` inventory, an unset legacy `FPM_PATH`
+uses the local `fpmsyncd` header directory. Explicit values are preserved.
+
+The generator emits C++ targets in the generated package. The root workspace
+must use Bazel 8.5.1 and declare:
+
+```starlark
+bazel_dep(name = "rules_cc", version = "0.1.1")
+```
+
+The configured C++ compiler and Bazel's local C++ toolchain must be the same for
+the generated package. The external module caller described below uses the
+Bazel-managed GCC toolchain and its own `rules_cc` pin.
+
+## Prepared environment requirements
+
+The generated Cargo action runs in the prepared `sonic-slave` environment.
+The launcher must include that environment's identity in every action key,
+for example with
+`--action_env=SONIC_BAZEL_ENVIRONMENT_DIGEST=<digest>`. That identity must cover
+the installed compiler, system headers, libraries, and Cargo toolchain.
+`SOURCE_DATE_EPOCH` should also be explicit. The generator defaults the Cargo
+epoch to the Debian changelog timestamp; the launcher can set it with
+`--source-date-epoch`.
+
+## Targets and outputs
+
+The generated package uses these labels:
+
+| Target | Output |
+| --- | --- |
+| `//swss:<program>` | One configured SWSS C++ program |
+| `//swss:countersyncd` | Locked Cargo release binary |
+
+`inventory.json` records the configured program sources, compiler and linker
+options, Automake install paths, and Cargo vendor metadata. The C++ rules
+compile each translation unit separately, so a source edit rebuilds the
+affected objects and programs. A C++ edit can reuse the cached Cargo output.
+
+The Cargo action runs
+`cargo build --release --locked --offline --bin countersyncd` using the public
+workspace, root `Cargo.lock`, and prepared vendor tree. The generator puts the
+vendor files in a deterministic tar input and normalizes the vendor config to a
+relative path. The tar avoids treating dependency `BUILD.bazel` files as nested
+Bazel packages. Its digest covers every vendored filename, normalized mode, and
+byte, and the action also declares the lockfile, config, and local Rust inputs.
+
+Dependency downloads occur only during the explicit `cargo vendor --locked`
+preparation step, where Cargo verifies registry checksums and selects the Git
+revisions in the lockfile. That step may reuse an explicitly configured
+`CARGO_HOME`. The build action uses an empty temporary Cargo home so mutable
+global Cargo configuration cannot affect it, and has no dependency downloads.
+It is one Bazel action, so a Rust source edit currently rebuilds that Cargo
+action. Preserve the slave's `RUSTUP_HOME` and PATH in the action environment so
+the public `cargo-auditable` wrapper remains active.
+
+## Reuse the inventory from a SWSS module
+
+Generation also writes `production_sources.bzl`. It records each selected
+program's source labels, component directory, install path, and ordered local
+include directories, plus the Automake data inventory. Source labels use the
+module's top-level component packages, such as `//cfgmgr:vlanmgrd.cpp` and
+`//lib:recorder.cpp`. `local_include_directories` comes from the program's
+configured compile profile. It preserves the native `-I` order and duplicates;
+`.` denotes the SWSS root. A different local include class requires an explicit
+mapping before generation can continue.
+
+The module's production binaries consume these complete source lists and local
+include lists. Their `production_headers` dependencies declare header inputs
+without adding include directories; the original header targets remain
+available to tests and callers. This keeps the existing generator's
+one-target-per-program layout: a source shared by several programs is compiled
+separately for each program. Generate the map from the normal Linux VS release
+configuration; the module's C++ macro adds the ASAN and GCOV startup sources
+when those configurations are selected.
+
+After running the generator, refresh the copy loaded by the module:
+
+```sh
+cp /work/target/bazel/workspace/swss/production_sources.bzl \
+  /work/inputs/sonic-swss/bazel/production_sources.bzl
+```
+
+Source membership changes belong in Automake and are then regenerated here.
+
+Check the tracked source map against a configured tree without generating a
+package or preparing Cargo inputs:
+
+```sh
+python3 bazel/generate.py \
+  --source /work/inputs/sonic-swss \
+  --configured-build /work/inputs/sonic-swss \
+  --check-production-sources bazel/production_sources.bzl
+```
+
+The check exits with an error when the generated map differs. It reads the same
+configured Automake production inputs as full generation and leaves the tracked
+file unchanged.
+
+## Build C++ targets from an external module caller
+
+This caller builds the SWSS module's C++ targets with the managed GCC toolchain.
+The example uses Bazel 8.5.1 and paths visible inside the build environment;
+adjust those paths to match your mounts.
+
+### Caller module
+
+Create the caller's `MODULE.bazel` with the current iteration pins:
+
+```starlark
+module(name = "sonic_swss_caller")
+
+bazel_dep(name = "rules_cc", version = "0.2.16")
+bazel_dep(name = "sonic-swss", version = "0.0.0", repo_name = "sonic_swss")
+bazel_dep(
+    name = "sonic-swss-common",
+    version = "0.0.0-5ee19a9375e667c0d507239927745de8fa29be07",
+    repo_name = "sonic_swss_common",
+)
+bazel_dep(
+    name = "sonic-build-infra",
+    version = "0.0.14-f9876051703da05af745ffc781706e29fed7dd4b",
+    repo_name = "sonic_build_infra",
+)
+
+local_path_override(module_name = "sonic-swss", path = "/inputs/sonic-swss")
+
+# Root overrides in imported modules do not propagate to this caller.
+single_version_override(
+    module_name = "libnl3",
+    version = "3.7.0-sonic.2",
+)
+single_version_override(
+    module_name = "rules_distroless",
+    version = "0.9.4-sonic.1",
+)
+single_version_override(
+    module_name = "re2",
+    version = "2024-07-02.bcr.1",
+)
+
+gcc = use_extension("@sonic_build_infra//toolchains/gcc:extensions.bzl", "gcc")
+use_repo(gcc, "gcc_toolchains")
+register_toolchains("@gcc_toolchains//:all")
+```
+
+Register GCC in the root caller so the managed toolchain takes priority over
+`local_config_cc`. The local SWSS override points to the source tree containing
+the generated source map. Declare Common directly so the caller can enable its
+YANG C++ sources. Common revision `5ee19a9375e667c0d507239927745de8fa29be07`
+generates the configuration schema from its source inputs. The RE2 override
+selects the BCR metadata repair for its obsolete local C++ extension and retains
+the same upstream source archive.
+
+### Caller Bazel configuration
+
+Put `8.5.1` in the caller's `.bazelversion` and add these settings to its
+`.bazelrc`:
+
+```text
+common --check_direct_dependencies=off
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main
+common --registry=https://bcr.bazel.build/
+common --lockfile_mode=update
+common --noincompatible_disallow_empty_glob
+common --platforms=@sonic_build_infra//platforms:x86_64_trixie
+common --@sonic_swss_common//tools/bazel:yang_modules=True
+
+build:release --compilation_mode=opt
+```
+
+Use the same single SONiC registry branch as SWSS `.bazelrc`, followed by BCR.
+The maintained `main` branch contains the exact selected build-infra, libnl3,
+Distroless, DASH, Common, SAI, sairedis and Protobuf registrations. The DASH
+entry landed through
+[registry #19](https://github.com/securely1g/sonic-bazel-registry/pull/19).
+DASH version `0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069` selects the
+landed source commit on its maintained `master` branch. CI and local commands
+share this endpoint. Module versions, source archives/checksums, overlays and
+toolchain inputs remain pinned. The root libnl3 and Distroless overrides prevent
+higher-sorting dependency requests from replacing the selected SONiC fixes.
+Distroless `0.9.4-sonic.1` retains include fragments for shared infrastructure
+APT imports; Protobuf headers and its runtime are now source-built.
+Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2`,
+`rules_distroless@0.9.4-sonic.1`, `protobuf-legacy@3.21.12-sonic.1`, and
+`sonic-build-infra@0.0.14-f9876051703da05af745ffc781706e29fed7dd4b` are selected,
+alongside `sonic-dash-api@0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069`.
+The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
+RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
+`-Wdate-time` and `_FORTIFY_SOURCE=3` override. Infrastructure source
+[`f987605`](https://github.com/securely1g/sonic-build-infra/commit/f9876051703da05af745ffc781706e29fed7dd4b)
+also supplies `-Wl,-rpath-link=/lib/<multiarch>` for link-time dependency lookup;
+this does not embed an ELF runtime search path. The reviewed contract records
+this architecture-specific setting. The unused opt-in `as_needed` feature alias
+was removed upstream; the default `--as-needed` argument remains enabled.
+Keep the generated `MODULE.bazel.lock` out of Git and retain it with CI
+resolution artifacts. The Common flag
+enables its YANG C++ sources; this Common version generates the configuration
+schema from source inputs.
+
+### Build the C++ programs
+
+Run Bazel from the caller workspace:
+
+```sh
+bazel build --config=release @sonic_swss//dist:cpp_binaries
+```
+
+This target selects all 29 C++ programs. Build a single program with:
+
+```sh
+bazel build --config=release @sonic_swss//orchagent:orchagent
+```
+
+The source map is generated from the normal Linux VS release configuration.
+The generator rejects GCOV inputs, installed libraries, custom Automake install
+hooks, generated `BUILT_SOURCES`, and local link dependencies until those inputs
+have explicit Bazel rules.
+
+## Validation
+
+Run the focused generator tests with:
+
+```sh
+python3 -m unittest discover -s bazel/tests -v
+```
