@@ -248,12 +248,12 @@ bazel_dep(name = "rules_cc", version = "0.2.16")
 bazel_dep(name = "sonic-swss", version = "0.0.0", repo_name = "sonic_swss")
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.0-093a849f01722afb4730e685b3eb4f22a9bc9191",
+    version = "0.0.0-5ee19a9375e667c0d507239927745de8fa29be07",
     repo_name = "sonic_swss_common",
 )
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.14-ac6583668dbb92421b48009119f3472ee3e40b27",
+    version = "0.0.14-f9876051703da05af745ffc781706e29fed7dd4b",
     repo_name = "sonic_build_infra",
 )
 
@@ -281,7 +281,7 @@ register_toolchains("@gcc_toolchains//:all")
 Register GCC in the root caller so the managed toolchain takes priority over
 `local_config_cc`. The local SWSS override points to the source tree containing
 the generated source map. Declare Common directly so the caller can enable its
-YANG C++ sources. Common revision `093a849f01722afb4730e685b3eb4f22a9bc9191`
+YANG C++ sources. Common revision `5ee19a9375e667c0d507239927745de8fa29be07`
 generates the configuration schema from its source inputs. The RE2 override
 selects the BCR metadata repair for its obsolete local C++ extension and retains
 the same upstream source archive.
@@ -304,21 +304,21 @@ build:release --compilation_mode=opt
 ```
 
 Use the same single SONiC registry branch as SWSS `.bazelrc`, followed by BCR.
-The reviewed `codex/protobuf-312-integration` branch retains the exact selected
-build-infra, libnl3, Distroless, DASH, Common, SAI and sairedis registrations;
-registry `main` lacks several of these historical entries. CI and local commands
-share this endpoint. Module versions, source archives/checksums, overlays and
+The reviewed `codex/protobuf-312-integration` branch contains the exact selected
+build-infra, libnl3, Distroless, DASH, Common, SAI and sairedis registrations.
+The proposed Protobuf and DASH entries are not yet on registry `main`. CI and
+local commands share this endpoint. Module versions, source archives/checksums, overlays and
 toolchain inputs remain pinned. The root libnl3 and Distroless overrides prevent
 higher-sorting dependency requests from replacing the selected SONiC fixes.
 Distroless `0.9.4-sonic.1` retains include fragments for shared infrastructure
 APT imports; Protobuf headers and its runtime are now source-built.
 Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2`,
 `rules_distroless@0.9.4-sonic.1`, `protobuf-legacy@3.21.12-sonic.1`, and
-`sonic-build-infra@0.0.14-ac6583668dbb92421b48009119f3472ee3e40b27` are selected.
+`sonic-build-infra@0.0.14-f9876051703da05af745ffc781706e29fed7dd4b` are selected.
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
 RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
 `-Wdate-time` and `_FORTIFY_SOURCE=3` override. Infrastructure source
-[`ac65836`](https://github.com/securely1g/sonic-build-infra/commit/ac6583668dbb92421b48009119f3472ee3e40b27)
+[`f987605`](https://github.com/securely1g/sonic-build-infra/commit/f9876051703da05af745ffc781706e29fed7dd4b)
 also supplies `-Wl,-rpath-link=/lib/<multiarch>` for link-time dependency lookup;
 this does not embed an ELF runtime search path. The reviewed contract records
 this architecture-specific setting. The unused opt-in `as_needed` feature alias

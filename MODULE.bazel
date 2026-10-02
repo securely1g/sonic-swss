@@ -28,22 +28,22 @@ bazel_dep(name = "tar.bzl", version = "0.10.5")
 bazel_dep(name = "toolchains_llvm", version = "1.5.0")
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.14-ac6583668dbb92421b48009119f3472ee3e40b27",
+    version = "0.0.14-f9876051703da05af745ffc781706e29fed7dd4b",
     repo_name = "sonic_build_infra",
 )
 bazel_dep(
     name = "sonic-dash-api",
-    version = "0.0.4-c28c2c28b2db56163d5b9c48497c0eee2379f7fd",
+    version = "0.0.4-93bace9700fdda7fa9e29d3c4041604084b06b45",
     repo_name = "sonic_dash_api",
 )
 bazel_dep(
     name = "sonic-sairedis",
-    version = "0.0.0-df4319696743f4804053ab68c5af1a2b8254dcb4",
+    version = "0.0.0-e9402b77ba43aee6323665921598ef67e66293f9",
     repo_name = "sonic_sairedis",
 )
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.0-093a849f01722afb4730e685b3eb4f22a9bc9191",
+    version = "0.0.0-5ee19a9375e667c0d507239927745de8fa29be07",
     repo_name = "sonic_swss_common",
 )
 

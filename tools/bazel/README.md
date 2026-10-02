@@ -5,7 +5,7 @@ existing generator supplies their production source lists and retains the
 locked Cargo action for `countersyncd`.
 The Common dependency is fetched from
 [securely1g/sonic-swss-common](https://github.com/securely1g/sonic-swss-common)
-at revision `093a849f01722afb4730e685b3eb4f22a9bc9191`. That source owns its
+at revision `5ee19a9375e667c0d507239927745de8fa29be07`. That source owns its
 Bazel targets and generates the configuration schema from source inputs. The
 normal SWSS configuration enables Common's YANG C++ sources.
 
@@ -57,7 +57,7 @@ The C++ module uses these public interfaces for programs and tests:
 | sairedis shared library | `@sonic_sairedis//lib:sairedis_shared` |
 | DASH generated headers and shared library | `@sonic_dash_api//:dashapi` |
 
-Common revision `093a849f01722afb4730e685b3eb4f22a9bc9191` generates its
+Common revision `5ee19a9375e667c0d507239927745de8fa29be07` generates its
 configuration schema from source inputs with YANG enabled. SAI and sairedis
 provide their headers and libraries through their own module targets.
 
@@ -75,9 +75,9 @@ for normal C++ builds.
 The shared `.bazelrc` uses the reviewed SONiC registry branch
 `codex/protobuf-312-integration`, followed by BCR, for CI and local commands.
 That single endpoint preserves the selected `sonic-build-infra
-0.0.14-ac6583668dbb92421b48009119f3472ee3e40b27`, `libnl3 3.7.0-sonic.2`,
+0.0.14-f9876051703da05af745ffc781706e29fed7dd4b`, `libnl3 3.7.0-sonic.2`,
 `rules_distroless 0.9.4-sonic.1`, and the declared DASH, Common, SAI and sairedis
-entries. Several selected historical entries are absent from registry `main`.
+entries. The proposed Protobuf and DASH entries are not yet on registry `main`.
 Module/source versions and hashes remain pinned. The canonical caller guide
 uses the same endpoint.
 `MODULE.bazel` overrides libnl3 and Distroless versions because higher-sorting
