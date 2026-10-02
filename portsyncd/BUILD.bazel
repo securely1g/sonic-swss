@@ -1,0 +1,26 @@
+load("//bazel:production_sources.bzl", "SWSS_PROGRAMS")
+load("//tools/bazel:cc.bzl", "swss_cc_binary", "swss_headers")
+load("//tools/bazel:deps.bzl", "SWSS_DEPS")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(glob([
+    "*.cpp",
+    "*.h",
+]))
+
+swss_headers(
+    name = "headers",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+)
+
+swss_cc_binary(
+    name = "portsyncd",
+    srcs = SWSS_PROGRAMS["portsyncd"]["sources"],
+    deps = SWSS_DEPS + [
+        ":production_headers",
+        "//cfgmgr:production_headers",
+        "//lib:production_headers",
+    ],
+)
