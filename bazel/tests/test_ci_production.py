@@ -11,7 +11,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest import mock
+import unittest.mock
 
 
 BAZEL_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -165,7 +165,7 @@ class BuildDefinitionsTest(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content)
             tracked = ("\0".join(contents) + "\0").encode()
-            with mock.patch.object(ci, "ROOT", root), mock.patch.object(ci.subprocess, "check_output", return_value=tracked):
+            with unittest.mock.patch.object(ci, "ROOT", root), unittest.mock.patch.object(ci.subprocess, "check_output", return_value=tracked):
                 original = ci.build_definitions_sha256()
                 for name in ("app/BUILD.bazel", "tools/cc.bzl"):
                     with self.subTest(definition=name):
@@ -200,9 +200,9 @@ class RetainedGraphTest(unittest.TestCase):
             "programs": [{"name": name, "label": "//app:" + name} for name in self.fixture.programs],
         }
         self.write_graph()
-        self.stack.enter_context(mock.patch.object(ci, "ROOT", self.root))
-        self.stack.enter_context(mock.patch.object(ci, "checkout_revision", return_value=REVISION))
-        self.stack.enter_context(mock.patch.object(ci, "build_definitions_sha256", return_value=BUILD_DEFINITIONS_SHA256))
+        self.stack.enter_context(unittest.mock.patch.object(ci, "ROOT", self.root))
+        self.stack.enter_context(unittest.mock.patch.object(ci, "checkout_revision", return_value=REVISION))
+        self.stack.enter_context(unittest.mock.patch.object(ci, "build_definitions_sha256", return_value=BUILD_DEFINITIONS_SHA256))
         self.native_sources = (
             set(self.fixture.sources) | ci.CODEQL_TEST_SOURCES | ci.CODEQL_FEATURE_SOURCES
             | {"tests/legacy_test.cpp", "lib/asan.cpp", "other/unused.cpp"}
@@ -211,7 +211,7 @@ class RetainedGraphTest(unittest.TestCase):
             path = self.root / source
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("// Tracked fixture source.\n")
-        self.stack.enter_context(mock.patch.object(ci.subprocess, "check_output", return_value=("\0".join(sorted(self.native_sources)) + "\0").encode()))
+        self.stack.enter_context(unittest.mock.patch.object(ci.subprocess, "check_output", return_value=("\0".join(sorted(self.native_sources)) + "\0").encode()))
 
     def write_receipt(self):
         self.receipt_path.write_text(json.dumps(self.receipt) + "\n")
