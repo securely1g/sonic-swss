@@ -9,7 +9,6 @@ import json
 import os
 from pathlib import Path
 import platform
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,18 +27,8 @@ class Fixture:
     def __init__(self, root: Path):
         self.source = root / "source"
         self.configured = root / "configured"
-        self.output = root / "workspace/swss"
-        self.vendor = root / "vendor"
-        self.vendor_config = root / "vendor.toml"
         for directory in (self.source, self.configured, self.source / "bazel"):
             directory.mkdir(parents=True)
-        self.vendor.mkdir()
-        self.vendor_config.write_text(
-            '[source.crates-io]\nreplace-with = "vendored-sources"\n\n'
-            + f'[source.vendored-sources]\ndirectory = "{self.vendor}"\n'
-        )
-        for name in ("defs.bzl", "build_cargo.py"):
-            shutil.copyfile(BAZEL_DIRECTORY / name, self.source / "bazel" / name)
         files = {
             "app/main.cpp": '#include "config.h"\n#include "app/common.h"\nint main() { return answer(); }\n',
             "app/base.cpp": '#include "app/common.h"\nint answer() { return 0; }\n',
@@ -47,10 +36,6 @@ class Fixture:
             "app/common.h": "int answer();\n",
             "app/data.lua": "return 1\n",
             "team/main.cpp": "int main() { return 0; }\n",
-            "Cargo.toml": '[workspace]\nmembers = ["crates/countersyncd"]\n',
-            "Cargo.lock": 'version = 3\n\n[[package]]\nname = "countersyncd"\nversion = "0.1.0"\n',
-            "crates/countersyncd/Cargo.toml": '[package]\nname = "countersyncd"\nversion = "0.1.0"\nedition = "2021"\n',
-            "crates/countersyncd/src/main.rs": "fn main() {}\n",
         }
         for name, contents in files.items():
             path = self.source / name
@@ -88,12 +73,17 @@ class Fixture:
             common + "bindir = /usr/bin\nbin_PROGRAMS = team\nteam_SOURCES = main.cpp\nteam_OBJECTS = team-main.o\n"
         )
 
-    def render(self) -> dict[str, tuple[bytes, int]]:
-        return generate.Generator(self.source, self.configured, "swss", self.vendor, self.vendor_config).render(1457553600)
-
-    def build_contract(self, package: str = "swss") -> dict:
-        generator = generate.Generator(self.source, self.configured, package)
+    def generator(self):
+        generator = generate.Generator(self.source, self.configured)
         generator.read_make_tree()
+        return generator
+
+    def source_map(self) -> bytes:
+        generator = self.generator()
+        return generator.module_sources(generator.production_inventory()).encode()
+
+    def build_contract(self) -> dict:
+        generator = self.generator()
         inventory = generator.production_inventory()
         source_map = generator.module_sources(inventory).encode()
         return generator.build_contract(inventory, hashlib.sha256(source_map).hexdigest(), "a" * 40)
@@ -108,39 +98,21 @@ class GeneratorTest(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_configured_selection_flags_and_install_inventory(self) -> None:
-        rendered = self.fixture.render()
-        inventory = json.loads(rendered["inventory.json"][0])
+        inventory = self.fixture.generator().production_inventory()
         self.assertEqual([item["name"] for item in inventory["programs"]], ["example", "team"])
         example = inventory["programs"][0]
         self.assertEqual(example["sources"], ["app/main.cpp", "app/base.cpp", "app/feature.cpp"])
         self.assertIn("-DEXAMPLE", example["compile_options"])
         self.assertNotIn("-DFALLBACK", example["compile_options"])
         self.assertIn("-DGLOBAL", example["compile_options"])
-        self.assertIn("-ffile-prefix-map=swss/src=.", example["compile_options"])
+        self.assertIn("-ffile-prefix-map=<swss>=.", example["compile_options"])
         self.assertEqual(example["link_options"][-2:], ["-lm", "-lm"])
         self.assertEqual(inventory["automake_install"][0]["install_path"], "usr/share/swss/data.lua")
-        self.assertNotIn(str(self.fixture.source).encode(), rendered["BUILD.bazel"][0])
-        self.assertNotIn(str(self.fixture.configured).encode(), rendered["inventory.json"][0])
-        self.assertTrue(inventory["cargo"]["offline"])
-        self.assertIn(b'directory = "vendor"', rendered["src/.cargo/config.toml"][0])
-
-    def test_vendor_bytes_are_deterministic_declared_inputs(self) -> None:
-        crate = self.fixture.vendor / "fixture-1.0.0"
-        crate.mkdir()
-        (crate / "BUILD.bazel").write_text("not a generated workspace package\n")
-        (crate / "lib.rs").write_text("pub fn value() -> u8 { 1 }\n")
-        first = self.fixture.render()
-        second = self.fixture.render()
-        archive = "src/" + generate.VENDOR_ARCHIVE
-        self.assertEqual(first[archive], second[archive])
-        self.assertNotIn("src/vendor/fixture-1.0.0/BUILD.bazel", first)
-        (crate / "lib.rs").write_text("pub fn value() -> u8 { 2 }\n")
-        changed = self.fixture.render()
-        self.assertNotEqual(first[archive][0], changed[archive][0])
+        self.assertNotIn(str(self.fixture.source), json.dumps(inventory))
+        self.assertNotIn(str(self.fixture.configured), json.dumps(inventory))
 
     def test_module_sources_preserve_configured_inventory(self) -> None:
-        rendered = self.fixture.render()
-        sources = rendered["production_sources.bzl"][0].decode()
+        sources = self.fixture.source_map().decode()
         self.assertIn('"//app:main.cpp"', sources)
         self.assertIn('"//app:feature.cpp"', sources)
         self.assertIn('"install_path": "usr/bin/example"', sources)
@@ -149,19 +121,19 @@ class GeneratorTest(unittest.TestCase):
         self.assertEqual(programs["example"]["local_include_directories"], ["app", "app", ".", "."])
 
     def test_module_sources_detect_local_include_order_and_class_drift(self) -> None:
-        baseline = self.fixture.render()["production_sources.bzl"][0]
+        baseline = self.fixture.source_map()
         makefile = self.fixture.configured / "app/Makefile"
         original = makefile.read_text()
         makefile.write_text(original.replace("-I. -I$(top_srcdir)/app -I..", "-I.. -I$(top_srcdir)/app -I."))
-        self.assertNotEqual(baseline, self.fixture.render()["production_sources.bzl"][0])
+        self.assertNotEqual(baseline, self.fixture.source_map())
         makefile.write_text(original.replace("-I. -I$(top_srcdir)/app -I..", "-isystem . -I$(top_srcdir)/app -I.."))
         with self.assertRaisesRegex(ValueError, "local module include class needs an explicit mapping"):
-            self.fixture.render()
+            self.fixture.source_map()
 
     def test_build_contract_records_flags_and_normalizes_configured_roots(self) -> None:
         contract = self.fixture.build_contract()
         relocated = Fixture(Path(self.temporary.name) / "relocated")
-        self.assertEqual(contract, relocated.build_contract("alternate/swss"))
+        self.assertEqual(contract, relocated.build_contract())
         self.assertEqual(contract["architecture"], {
             "execution_machine": platform.machine(),
             "configured_target_cpus": [platform.machine()],
@@ -204,12 +176,10 @@ class GeneratorTest(unittest.TestCase):
             self.fixture.build_contract()
 
     def test_check_production_sources_without_cargo_or_package(self) -> None:
-        expected = self.fixture.render()["production_sources.bzl"][0]
+        expected = self.fixture.source_map()
         checked_in = self.fixture.source / "bazel/production_sources.bzl"
         checked_in.write_bytes(expected)
         contract_path = Path(self.temporary.name) / "artifacts/native-build-contract.json"
-        shutil.rmtree(self.fixture.vendor)
-        self.fixture.vendor_config.unlink()
         command = [
             sys.executable,
             str(BAZEL_DIRECTORY / "generate.py"),
@@ -221,7 +191,6 @@ class GeneratorTest(unittest.TestCase):
         ]
         result = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertFalse(self.fixture.output.exists())
         contract_bytes = contract_path.read_bytes()
         contract = json.loads(contract_bytes)
         self.assertEqual(contract["schema_version"], 1)
@@ -235,33 +204,72 @@ class GeneratorTest(unittest.TestCase):
         self.assertIn("does not match configured Automake production sources", result.stderr)
         self.assertEqual(checked_in.read_bytes(), expected)
         self.assertEqual(contract_path.read_bytes(), contract_bytes)
-        self.assertFalse(self.fixture.output.exists())
 
-    def test_synchronization_preserves_unchanged_files_and_removes_stale_inputs(self) -> None:
-        rendered = self.fixture.render()
-        generate.synchronize(self.fixture.output, rendered)
-        before = {path.relative_to(self.fixture.output): path.stat().st_mtime_ns for path in self.fixture.output.rglob("*") if path.is_file()}
-        generate.synchronize(self.fixture.output, self.fixture.render())
-        after = {path.relative_to(self.fixture.output): path.stat().st_mtime_ns for path in self.fixture.output.rglob("*") if path.is_file()}
-        self.assertEqual(before, after)
+    def test_update_source_map_without_cargo_preserves_unrelated_files(self) -> None:
+        checked_in = self.fixture.source / "bazel/production_sources.bzl"
+        unrelated = self.fixture.source / "bazel/keep.txt"
+        unrelated.write_text("user file\n")
+        command = [
+            sys.executable, str(BAZEL_DIRECTORY / "generate.py"),
+            "--source", str(self.fixture.source),
+            "--configured-build", str(self.fixture.configured),
+            "--update-production-sources", str(checked_in),
+        ]
+        before = {p.relative_to(self.fixture.source) for p in self.fixture.source.rglob("*") if p.is_file()}
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(checked_in.read_bytes(), self.fixture.source_map())
+        after = {p.relative_to(self.fixture.source) for p in self.fixture.source.rglob("*") if p.is_file()}
+        self.assertEqual(after - before, {Path("bazel/production_sources.bzl")})
+        self.assertEqual(unrelated.read_text(), "user file\n")
+        mtime = checked_in.stat().st_mtime_ns
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(checked_in.stat().st_mtime_ns, mtime)
+
+        baseline = checked_in.read_bytes()
         self.fixture.write_makefiles(team=False)
-        generate.synchronize(self.fixture.output, self.fixture.render())
-        self.assertFalse((self.fixture.output / "src/team/main.cpp").exists())
-        inventory = json.loads((self.fixture.output / "inventory.json").read_text())
-        self.assertEqual([item["name"] for item in inventory["programs"]], ["example"])
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(checked_in.read_bytes(), baseline)
+        self.assertNotIn('"team"', checked_in.read_text())
+        check_command = ["--check-production-sources" if arg == "--update-production-sources" else arg for arg in command]
+        result = subprocess.run(check_command, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_cli_rejects_invalid_output_modes_before_writing(self) -> None:
+        output = self.fixture.source / "bazel/production_sources.bzl"
+        output.write_text("keep source map\n")
+        contract = Path(self.temporary.name) / "contract.json"
+        command = [
+            sys.executable, str(BAZEL_DIRECTORY / "generate.py"),
+            "--source", str(self.fixture.source),
+            "--configured-build", str(self.fixture.configured),
+        ]
+        for options in [
+            ["--check-production-sources", str(output), "--update-production-sources", str(output)],
+            ["--update-production-sources", str(output), "--output-build-contract", str(contract), "--git-revision", "a" * 40],
+            ["--check-production-sources", str(output), "--output-build-contract", str(contract)],
+            ["--check-production-sources", str(output), "--git-revision", "a" * 40],
+        ]:
+            with self.subTest(options=options):
+                result = subprocess.run(command + options, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(output.read_text(), "keep source map\n")
+                self.assertFalse(contract.exists())
 
     def test_missing_or_unsupported_inputs_fail_before_generation(self) -> None:
         makefile = self.fixture.configured / "app/Makefile"
         original = makefile.read_text()
         makefile.write_text(original + "BUILT_SOURCES = generated.cpp\n")
         with self.assertRaisesRegex(ValueError, "generated sources"):
-            self.fixture.render()
+            self.fixture.source_map()
         makefile.write_text(original.replace("example-feature.o", ""))
         with self.assertRaisesRegex(ValueError, "object list"):
-            self.fixture.render()
+            self.fixture.source_map()
         makefile.write_text(original + "INCLUDES += -I\n")
         with self.assertRaisesRegex(ValueError, "missing path"):
-            self.fixture.render()
+            self.fixture.source_map()
 
     def test_fpmsyncd_query_defaults_only_unset_legacy_include_root(self) -> None:
         directory = self.fixture.configured / "fpmsyncd"
@@ -277,13 +285,6 @@ class GeneratorTest(unittest.TestCase):
         variables = generate.query_make(directory)
         self.assertEqual(generate.value(variables, "INCLUDES"), "-I /usr/include/fpm")
         self.assertEqual(makefile.read_text(), contents + "FPM_PATH = /usr/include/fpm\n")
-
-    def test_synchronization_refuses_an_unowned_output_directory(self) -> None:
-        self.fixture.output.mkdir(parents=True)
-        (self.fixture.output / "keep.txt").write_text("user file\n")
-        with self.assertRaisesRegex(ValueError, "unowned"):
-            generate.synchronize(self.fixture.output, self.fixture.render())
-        self.assertEqual((self.fixture.output / "keep.txt").read_text(), "user file\n")
 
 
 if __name__ == "__main__":

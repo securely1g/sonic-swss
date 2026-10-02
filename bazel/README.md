@@ -1,135 +1,64 @@
-# SWSS Bazel generator
+# SWSS source map and native build checks
 
-This directory generates Bazel C++ and Cargo targets from a configured SWSS
-tree. It also emits `production_sources.bzl` for the module targets in this
-repository. The configured Automake files remain the source of truth for
-program selection, source membership, flags, and installed data.
-The module's standalone Rust and runtime targets remain drafts. The normal
-C++ validation below does not assess Cargo, Rust, or runtime completion.
+`generate.py` keeps the checked-in `bazel/production_sources.bzl` synchronized
+with configured Automake inputs and records native build settings for CI.
+Normal `bazel build` commands read the checked-in map and component BUILD files;
+they do not run this script or require an Automake configuration step.
 
-## Generate C++ and Cargo targets
+## Configure the native source inventory
 
-Run the generator inside the same prepared `sonic-slave` environment that will
-run Bazel. The source tree must contain the local SWSS changes and the configured
-tree must come from that source. An in-source configured tree is supported.
-Prepare the locked dependency sources before generation. `cargo vendor` writes
-its source replacement configuration to standard output.
+Run the commands below from the SWSS repository root in a native Linux build
+environment with the Automake configuration dependencies installed. The
+[Bazel workflow](../.github/workflows/bazel.yml) lists those host dependencies.
+Use the normal Linux VS release configuration, without ASAN or GCOV:
 
 ```sh
-cargo vendor --locked --versioned-dirs /work/target/bazel/cargo-vendor \
-  > /work/target/bazel/cargo-vendor.toml
-python3 bazel/generate.py \
-  --source /work/inputs/sonic-swss \
-  --configured-build /work/inputs/sonic-swss \
-  --cargo-vendor /work/target/bazel/cargo-vendor \
-  --cargo-vendor-config /work/target/bazel/cargo-vendor.toml \
-  --output-package /work/target/bazel/workspace/swss
+./autogen.sh
+debian/rules override_dh_auto_configure
 ```
 
-The vendor and output directories must be outside the source and configured
-trees. The generator owns the output directory, preserves unchanged files, and
-removes stale generated inputs. It refuses to replace a nonempty directory
-without its ownership marker. Generated build files contain workspace-relative
-source paths. For the public `fpmsyncd` inventory, an unset legacy `FPM_PATH`
-uses the local `fpmsyncd` header directory. Explicit values are preserved.
+This runs the native configuration step. It does not compile programs or create
+a Debian package. The source and configured trees must come from the same
+checkout; an in-source configured tree is supported.
 
-The generator emits C++ targets in the generated package. The root workspace
-must use Bazel 8.5.1 and declare:
+## Update or check the source map
 
-```starlark
-bazel_dep(name = "rules_cc", version = "0.1.1")
-```
-
-The configured C++ compiler and Bazel's local C++ toolchain must be the same for
-the generated package. The external module caller described below uses the
-Bazel-managed GCC toolchain and its own `rules_cc` pin.
-
-## Prepared environment requirements
-
-The generated Cargo action runs in the prepared `sonic-slave` environment.
-The launcher must include that environment's identity in every action key,
-for example with
-`--action_env=SONIC_BAZEL_ENVIRONMENT_DIGEST=<digest>`. That identity must cover
-the installed compiler, system headers, libraries, and Cargo toolchain.
-`SOURCE_DATE_EPOCH` should also be explicit. The generator defaults the Cargo
-epoch to the Debian changelog timestamp; the launcher can set it with
-`--source-date-epoch`.
-
-## Targets and outputs
-
-The generated package uses these labels:
-
-| Target | Output |
-| --- | --- |
-| `//swss:<program>` | One configured SWSS C++ program |
-| `//swss:countersyncd` | Locked Cargo release binary |
-
-`inventory.json` records the configured program sources, compiler and linker
-options, Automake install paths, and Cargo vendor metadata. The C++ rules
-compile each translation unit separately, so a source edit rebuilds the
-affected objects and programs. A C++ edit can reuse the cached Cargo output.
-
-The Cargo action runs
-`cargo build --release --locked --offline --bin countersyncd` using the public
-workspace, root `Cargo.lock`, and prepared vendor tree. The generator puts the
-vendor files in a deterministic tar input and normalizes the vendor config to a
-relative path. The tar avoids treating dependency `BUILD.bazel` files as nested
-Bazel packages. Its digest covers every vendored filename, normalized mode, and
-byte, and the action also declares the lockfile, config, and local Rust inputs.
-
-Dependency downloads occur only during the explicit `cargo vendor --locked`
-preparation step, where Cargo verifies registry checksums and selects the Git
-revisions in the lockfile. That step may reuse an explicitly configured
-`CARGO_HOME`. The build action uses an empty temporary Cargo home so mutable
-global Cargo configuration cannot affect it, and has no dependency downloads.
-It is one Bazel action, so a Rust source edit currently rebuilds that Cargo
-action. Preserve the slave's `RUSTUP_HOME` and PATH in the action environment so
-the public `cargo-auditable` wrapper remains active.
-
-## Reuse the inventory from a SWSS module
-
-Generation also writes `production_sources.bzl`. It records each selected
-program's source labels, component directory, install path, and ordered local
-include directories, plus the Automake data inventory. Source labels use the
-module's top-level component packages, such as `//cfgmgr:vlanmgrd.cpp` and
-`//lib:recorder.cpp`. `local_include_directories` comes from the program's
-configured compile profile. It preserves the native `-I` order and duplicates;
-`.` denotes the SWSS root. A different local include class requires an explicit
-mapping before generation can continue.
-
-The module's production binaries consume these complete source lists and local
-include lists. Their `production_headers` dependencies declare header inputs
-without adding include directories; the original header targets remain
-available to tests and callers. This keeps the existing generator's
-one-target-per-program layout: a source shared by several programs is compiled
-separately for each program. Generate the map from the normal Linux VS release
-configuration; the module's C++ macro adds the ASAN and GCOV startup sources
-when those configurations are selected.
-
-After running the generator, refresh the copy loaded by the module:
-
-```sh
-cp /work/target/bazel/workspace/swss/production_sources.bzl \
-  /work/inputs/sonic-swss/bazel/production_sources.bzl
-```
-
-Source membership changes belong in Automake and are then regenerated here.
-
-Check the tracked source map against a configured tree without generating a
-package or preparing Cargo inputs:
+After changing production source membership in Automake, configure the tree and
+update the checked-in map:
 
 ```sh
 python3 bazel/generate.py \
-  --source /work/inputs/sonic-swss \
-  --configured-build /work/inputs/sonic-swss \
+  --source "$PWD" \
+  --configured-build "$PWD" \
+  --update-production-sources bazel/production_sources.bzl
+```
+
+Review and commit the source-map diff with the Automake change. The map records
+each selected program's source labels, component directory, install path, and
+ordered local include directories, plus the Automake data inventory. Labels
+use the module's component packages, such as `//cfgmgr:vlanmgrd.cpp` and
+`//lib:recorder.cpp`. Local include directories preserve the native `-I` order
+and duplicates; `.` denotes the SWSS root. An unset legacy `FPM_PATH` uses the
+local `fpmsyncd` header directory; explicit values are preserved.
+
+Each production binary consumes its complete source list. Shared sources
+compile separately for each consuming program. `production_headers` targets
+declare header inputs without adding include directories. The C++ macro adds
+the ASAN and GCOV startup sources when those configurations are selected.
+
+CI checks the map without changing it:
+
+```sh
+python3 bazel/generate.py \
+  --source "$PWD" \
+  --configured-build "$PWD" \
   --check-production-sources bazel/production_sources.bzl
 ```
 
-The check exits with an error when the generated map differs. It reads the same
-configured Automake production inputs as full generation and leaves the tracked
-file unchanged.
+The check fails if the configured inventory differs from the tracked file.
+Neither mode prepares Cargo inputs or generates BUILD files.
 
-### Compare native and Bazel build settings
+## Compare native and Bazel build settings
 
 The source and install map, including local include order, is shared by the
 native AMD64 and ARM64 configurations. Each native runner writes its own
@@ -138,8 +67,8 @@ configured options can differ. Add these arguments to the source check:
 
 ```sh
 python3 bazel/generate.py \
-  --source /work/inputs/sonic-swss \
-  --configured-build /work/inputs/sonic-swss \
+  --source "$PWD" \
+  --configured-build "$PWD" \
   --check-production-sources bazel/production_sources.bzl \
   --output-build-contract native-build-contract.json \
   --git-revision "$(git rev-parse HEAD)"
@@ -176,10 +105,8 @@ The known include roots are explicit: `<swss>` names local component paths,
 `<swsscommon-headers>` names Common, `<libnl3-headers>` names libnl3, and
 `<sai-headers>` maps to the public sairedis header dependencies.
 `<system-headers>` records the managed toolchain and named dependency headers
-that replace native `/usr/include`. The optional contract output rejects an
-include or library path without a mapping and a native library without a
-provider. Full C++ and Cargo package generation keeps its existing configured
-path behavior.
+that replace native `/usr/include`. The contract output rejects an include or
+library path without a mapping and a native library without a provider.
 
 The current intentional differences are named in the contract and comparison
 result. The selected production sources do not include `config.h`, so the

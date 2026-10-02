@@ -1,8 +1,8 @@
 # Building SWSS with Bazel
 
-This repository defines Bazel module targets for the SWSS C++ programs. The
-existing generator supplies their production source lists and retains the
-locked Cargo action for `countersyncd`.
+This repository defines Bazel module targets for the SWSS C++ programs.
+Normal builds read the checked-in production source map; `bazel/generate.py`
+updates that map and checks it against Automake in CI.
 The Common dependency is fetched from
 [securely1g/sonic-swss-common](https://github.com/securely1g/sonic-swss-common)
 at revision `5ee19a9375e667c0d507239927745de8fa29be07`. That source owns its
@@ -16,9 +16,9 @@ For an external module caller, use the
 
 - `MODULE.bazel` pins the toolchains and external dependencies.
 - Each component directory contains its C++ program and header targets.
-- `bazel/generate.py` reads the configured Automake build and emits
-  `production_sources.bzl` plus generated C++ and Cargo targets. The module
-  loads a copy of that source map from `bazel/production_sources.bzl`.
+- `bazel/generate.py` reads configured Automake inputs to update or check
+  `bazel/production_sources.bzl` and record native compiler and linker settings
+  for CI comparison. It does not generate BUILD files or run during Bazel builds.
 - `tools/bazel/cc.bzl` applies the common SWSS compiler options, release-specific
   fortification, and the native ASAN and GCOV source selections. The managed
   GCC toolchain supplies optimization and baseline hardening.
@@ -27,9 +27,9 @@ For an external module caller, use the
 
 Each production binary uses its complete generated source list. Add or remove
 production sources in Automake, then regenerate the source map. Shared sources
-compile separately for each consuming program, matching the existing
-generator. See [the generator documentation](../../bazel/README.md#reuse-the-inventory-from-a-swss-module)
-for the preparation command and source-map update.
+compile separately for each consuming program. See the
+[source-map guide](../../bazel/README.md#update-or-check-the-source-map) for
+configuration, update, and check commands.
 
 ## Build environment
 
@@ -38,12 +38,10 @@ toolchains target Debian Trixie. They execute on the same CPU they target:
 the default configuration is Linux x86-64, and `--config=aarch64` requires an
 Arm64 build host.
 
-The generated `//swss:countersyncd` target uses the existing locked, offline
-Cargo action. The separate `//crates/countersyncd:countersyncd` target uses
-`rules_rust`, bindgen, and Clang and remains a draft migration.
-An external caller must register the managed GCC toolchain in its root module;
-the canonical caller guide includes that registration. The generator guide
-describes the prepared environment required by its Cargo action.
+The separate `//crates/countersyncd:countersyncd` target uses `rules_rust`,
+bindgen, and Clang and remains a draft migration. An external caller must
+register the managed GCC toolchain in its root module; the canonical caller
+guide includes that registration.
 
 ## SONiC dependency inputs
 
@@ -72,14 +70,13 @@ for normal C++ builds.
 
 ## Build commands
 
-The shared `.bazelrc` uses the reviewed SONiC registry branch
-`codex/protobuf-312-integration`, followed by BCR, for CI and local commands.
+The shared `.bazelrc` uses the SONiC registry `main` branch, followed by BCR,
+for CI and local commands.
 That single endpoint preserves the selected `sonic-build-infra
 0.0.14-f9876051703da05af745ffc781706e29fed7dd4b`, `libnl3 3.7.0-sonic.2`,
 `rules_distroless 0.9.4-sonic.1`, and the declared DASH, Common, SAI and sairedis
-entries. The proposed Protobuf and DASH entries are not yet on registry `main`.
-Module/source versions and hashes remain pinned. The canonical caller guide
-uses the same endpoint.
+entries. Module/source versions and hashes remain pinned. The canonical caller
+guide uses the same endpoint.
 `MODULE.bazel` overrides libnl3 and Distroless versions because higher-sorting
 dependency requests would otherwise replace the selected SONiC fixes. Distroless
 retains include fragments needed by shared infrastructure APT imports.
@@ -249,6 +246,5 @@ Both dependencies' matching debug archives, ELF identities, build IDs and debug
 checksums are retained with the evidence. SWSS's own installed inventory stays
 separate from these dependency payloads.
 
-CI resolves one reviewed registry branch,
-`codex/protobuf-312-integration`, plus BCR. It generates the ignored
+CI resolves the SONiC registry `main` branch plus BCR. It generates the ignored
 `MODULE.bazel.lock` and retains it alongside the resolved module graph.

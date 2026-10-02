@@ -1,38 +1,30 @@
 #!/usr/bin/env python3
-"""Generate a native Bazel package from a configured public SWSS tree.
+"""Update or check the Bazel source map against configured SWSS Automake files.
 
-The configured Automake files remain the source of truth for selected programs,
-sources, flags, and installed data. The output is an owned, synchronized Bazel
-package; it never writes to either input tree.
+Automake remains the source of truth for selected programs, sources, flags, and
+installed data. CI can also record normalized native build settings for comparison
+with the Bazel targets. This tool does not generate BUILD files or compile SWSS.
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import io
 import json
 import os
 from pathlib import Path, PurePosixPath
 import platform
 import re
 import shlex
-import stat
 import subprocess
-import tarfile
 import tempfile
-import tomllib
 from typing import Any
 
 
-MARKER = ".sonic-swss-bazel-package"
-MARKER_CONTENT = b"sonic-swss-bazel-package-v1\n"
-VENDOR_ARCHIVE = ".sonic-bazel-cargo-vendor.tar"
 HEADER_SUFFIXES = {".h", ".hh", ".hpp", ".hxx", ".inc"}
 CXX_SUFFIXES = {".cc", ".cpp", ".cxx", ".C"}
-IGNORED_DIRECTORIES = {".git", ".deps", ".libs", "target", "autom4te.cache", "__pycache__"}
 PRIMARY = re.compile(r"^((?:(?:dist|nodist|nobase)_)*)([A-Za-z][A-Za-z0-9_]*)_(PROGRAMS|DATA|SCRIPTS|HEADERS|LIBRARIES|LTLIBRARIES)$")
-RESERVED_TARGETS = {"headers", "countersyncd"}
+SOURCE_ROOT = "<swss>"
 MODULE_INCLUDE_ROOTS = {
     "/usr/include": "<system-headers>",
     "/usr/include/libnl3": "<libnl3-headers>",
@@ -145,35 +137,10 @@ def relative_path(value: str) -> PurePosixPath:
     return path
 
 
-def file_mode(path: Path) -> int:
-    return 0o755 if stat.S_IMODE(path.stat().st_mode) & 0o111 else 0o644
-
-
 def package_mode(install_path: str, mode: int) -> int:
     # Files installed in executable directories must remain executable.
     executable_directories = ("bin/", "sbin/", "usr/bin/", "usr/sbin/", "usr/games/", "etc/init.d/")
     return 0o755 if install_path.startswith(executable_directories) else mode
-
-
-def walk_files(root: Path, ignore_build_outputs: bool = True) -> list[Path]:
-    files = []
-    for directory, subdirectories, names in os.walk(root):
-        if ignore_build_outputs:
-            subdirectories[:] = sorted(
-                name for name in subdirectories
-                if name not in IGNORED_DIRECTORIES and not name.startswith("bazel-")
-            )
-        else:
-            subdirectories.sort()
-            if any((Path(directory) / name).is_symlink() for name in subdirectories):
-                raise ValueError(f"Cargo vendor tree contains a symlinked directory: {directory}")
-        for name in sorted(names):
-            path = Path(directory) / name
-            if path.is_file():
-                if not path.resolve().is_relative_to(root.resolve()):
-                    raise ValueError(f"source symlink leaves the source tree: {path}")
-                files.append(path)
-    return files
 
 
 def query_make(directory: Path) -> dict[str, tuple[str, str]]:
@@ -235,23 +202,13 @@ def value(variables: dict[str, tuple[str, str]], name: str, fallback: str | None
 
 
 class Generator:
-    def __init__(self, source: Path, configured: Path, package: str, vendor: Path | None = None, vendor_config: Path | None = None):
+    def __init__(self, source: Path, configured: Path):
         self.source = source.resolve()
         self.configured = configured.resolve()
-        self.vendor = vendor.resolve() if vendor is not None else None
-        self.vendor_config = vendor_config.resolve() if vendor_config is not None else None
-        self.package = relative_path(package).as_posix()
         self.inputs: dict[str, Path] = {}
         self.programs: list[dict[str, Any]] = []
         self.automake_install: list[dict[str, Any]] = []
-        self.cargo_sources: set[str] = set()
-        self.headers: set[str] = set()
-        self.subdirectories: list[str] = []
-        self.compilers: set[str] = set()
         self.target_cpus: set[str] = set()
-        self.vendor_archive = b""
-        self.vendor_file_count = 0
-        self.cargo_config = b""
 
     def add_input(self, relative: str, path: Path) -> str:
         name = relative_path(relative).as_posix()
@@ -289,7 +246,7 @@ class Generator:
                 if local_libraries:
                     raise ValueError(f"local library paths need explicit Bazel targets: {token}")
                 relative = resolved.relative_to(root).as_posix()
-                return f"{self.package}/src" + (f"/{relative}" if relative != "." else "")
+                return SOURCE_ROOT + (f"/{relative}" if relative != "." else "")
         if path.is_absolute():
             return token
         raise ValueError(f"relative compiler path leaves the SWSS inputs: {token}")
@@ -338,17 +295,15 @@ class Generator:
         return (path.relative_to("/") / suffix).as_posix()
 
     def read_program(self, name: str, directory: str, install_directory: str, variables: dict[str, tuple[str, str]]) -> None:
-        if not re.fullmatch(r"[A-Za-z0-9_+.-]+", name) or name in RESERVED_TARGETS:
-            raise ValueError(f"unsupported or reserved program name: {name}")
+        if not re.fullmatch(r"[A-Za-z0-9_+.-]+", name):
+            raise ValueError(f"unsupported program name: {name}")
         sources = []
         for token in shlex.split(value(variables, name + "_SOURCES") + " " + value(variables, "nodist_" + name + "_SOURCES")):
             relative = self.resolve_source(token, directory)
             suffix = Path(relative).suffix
-            if suffix in HEADER_SUFFIXES:
-                self.headers.add(relative)
-            elif suffix in CXX_SUFFIXES:
+            if suffix in CXX_SUFFIXES:
                 sources.append(relative)
-            else:
+            elif suffix not in HEADER_SUFFIXES:
                 raise ValueError(f"unsupported source language for {name}: {relative}")
         if not sources or len(sources) != len(set(sources)):
             raise ValueError(f"empty or duplicate configured C++ source list for {name}")
@@ -399,14 +354,11 @@ class Generator:
             if not top_source or (build_directory / top_source).resolve() != self.source:
                 raise ValueError(f"configured Makefile does not belong to --source: {build_directory}")
             if value(variables, "EXEEXT"):
-                raise ValueError("the SWSS Bazel package supports Linux executables only")
+                raise ValueError("the SWSS Bazel source map supports Linux executables only")
             if value(variables, "BUILT_SOURCES"):
                 raise ValueError(f"generated sources need explicit Bazel targets: {build_directory}")
             if "-fprofile-arcs" in value(variables, "CFLAGS_COMMON"):
-                raise ValueError("GCOV is not supported by the generated Bazel release targets")
-            self.subdirectories.append(directory)
-            if value(variables, "CXX"):
-                self.compilers.add(value(variables, "CXX"))
+                raise ValueError("the native build contract requires a release configuration without GCOV")
             if value(variables, "host_cpu"):
                 self.target_cpus.add(value(variables, "host_cpu"))
             for child in shlex.split(value(variables, "SUBDIRS")):
@@ -447,64 +399,6 @@ class Generator:
         if not names or len(names) != len(set(names)):
             raise ValueError("configured SWSS programs are empty or have duplicate names")
 
-    def read_headers_and_cargo(self) -> None:
-        for path in walk_files(self.source):
-            relative = path.relative_to(self.source).as_posix()
-            if path.suffix in HEADER_SUFFIXES and relative != "config.h":
-                self.headers.add(self.add_input(relative, path))
-            if relative in ("Cargo.toml", "Cargo.lock") or relative.startswith("crates/") or relative.startswith(".cargo/"):
-                self.cargo_sources.add(self.add_input(relative, path))
-        self.headers.add(self.add_input("config.h", self.configured / "config.h"))
-        for required in ("Cargo.toml", "Cargo.lock", "crates/countersyncd/Cargo.toml"):
-            if required not in self.cargo_sources:
-                raise ValueError(f"missing locked Cargo workspace input: {required}")
-
-    def read_vendor(self) -> None:
-        if self.vendor is None or self.vendor_config is None or not self.vendor.is_dir() or not self.vendor_config.is_file():
-            raise ValueError("Cargo vendor directory and cargo vendor configuration are required")
-        configuration_text = self.vendor_config.read_text()
-        configuration = tomllib.loads(configuration_text)
-        directory_sources = [
-            source for source in configuration.get("source", {}).values()
-            if isinstance(source, dict) and "directory" in source
-        ]
-        if len(directory_sources) != 1:
-            raise ValueError("cargo vendor configuration must contain exactly one directory source")
-        configured_directory = Path(directory_sources[0]["directory"])
-        if not configured_directory.is_absolute():
-            configured_directory = self.source / configured_directory
-        if configured_directory.resolve() != self.vendor:
-            raise ValueError("cargo vendor configuration does not identify --cargo-vendor")
-        normalized, replacements = re.subn(r"^directory\s*=.*$", 'directory = "vendor"', configuration_text, flags=re.MULTILINE)
-        if replacements != 1:
-            raise ValueError("could not normalize cargo vendor directory configuration")
-        original_config = self.source / ".cargo/config.toml"
-        if (self.source / ".cargo/config").exists():
-            raise ValueError("legacy .cargo/config must be migrated before adding the vendor configuration")
-        combined = (original_config.read_text() + "\n" if original_config.is_file() else "") + normalized
-        tomllib.loads(combined)
-        for root in (self.source, self.configured, self.vendor):
-            if str(root) in combined:
-                raise ValueError("normalized Cargo configuration contains an absolute input path")
-        self.cargo_config = combined.encode()
-        self.cargo_sources.add(".cargo/config.toml")
-
-        output = io.BytesIO()
-        with tarfile.open(fileobj=output, mode="w", format=tarfile.PAX_FORMAT) as archive:
-            for path in walk_files(self.vendor, ignore_build_outputs=False):
-                relative = path.relative_to(self.vendor).as_posix()
-                info = tarfile.TarInfo("vendor/" + relative_path(relative).as_posix())
-                info.size = path.stat().st_size
-                info.mode = file_mode(path)
-                info.mtime = 0
-                info.uid = info.gid = 0
-                info.uname = info.gname = ""
-                with path.open("rb") as stream:
-                    archive.addfile(info, stream)
-                self.vendor_file_count += 1
-        self.vendor_archive = output.getvalue()
-        self.cargo_sources.add(VENDOR_ARCHIVE)
-
     def production_inventory(self) -> dict[str, Any]:
         installed = [program["install_path"] for program in self.programs]
         installed += [entry["install_path"] for entry in self.automake_install]
@@ -515,32 +409,13 @@ class Generator:
             "automake_install": sorted(self.automake_install, key=lambda item: item["install_path"]),
         }
 
-    def inventory(self, epoch: int) -> dict[str, Any]:
-        production = self.production_inventory()
-        return {
-            "schema_version": 1,
-            "configured_subdirectories": self.subdirectories,
-            "configured_cxx": sorted(self.compilers),
-            "programs": production["programs"],
-            "automake_install": production["automake_install"],
-            "cargo": {
-                "label": f"//{self.package}:countersyncd",
-                "locked": True,
-                "offline": True,
-                "vendor_archive": VENDOR_ARCHIVE,
-                "vendor_files": self.vendor_file_count,
-                "vendor_sha256": hashlib.sha256(self.vendor_archive).hexdigest(),
-            },
-            "source_date_epoch": epoch,
-        }
-
     def module_sources(self, inventory: dict[str, Any]) -> str:
         def source_label(name: str) -> str:
             parts = relative_path(name).parts
             return "//" + parts[0] + ":" + "/".join(parts[1:]) if len(parts) > 1 else "//:" + parts[0]
 
         def local_include_directories(program: dict[str, Any]) -> list[str]:
-            source_root = self.package + "/src"
+            source_root = SOURCE_ROOT
             result = []
             options = program["compile_options"]
             index = 0
@@ -586,9 +461,9 @@ class Generator:
     def build_contract(self, inventory: dict[str, Any], source_map_sha256: str, git_revision: str) -> dict[str, Any]:
         """Describe this runner's native release options for Bazel comparison."""
         def normalized_path(path: str, include: bool = False) -> str:
-            source_root = self.package + "/src"
+            source_root = SOURCE_ROOT
             if path == source_root or path.startswith(source_root + "/"):
-                return "<swss>" + path[len(source_root):]
+                return path
             if include and path in MODULE_INCLUDE_ROOTS:
                 return MODULE_INCLUDE_ROOTS[path]
             raise ValueError(f"native path has no module build-contract mapping: {path}")
@@ -683,130 +558,16 @@ class Generator:
             },
         }
 
-    def build_file(self, inventory: dict[str, Any]) -> str:
-        def assignment(name: str, item: Any) -> list[str]:
-            rendered = (["True" if item else "False"] if isinstance(item, bool) else json.dumps(item, indent=4, sort_keys=True).splitlines())
-            return [f"    {name} = {rendered[0]}"] + ["    " + line for line in rendered[1:-1]] + (["    " + rendered[-1] + ","] if len(rendered) > 1 else [])
-
-        def rule(kind: str, attributes: dict[str, Any]) -> list[str]:
-            result = [kind + "("]
-            for name, item in attributes.items():
-                lines = assignment(name, item)
-                if len(lines) == 1:
-                    lines[0] += ","
-                result.extend(lines)
-            return result + [")", ""]
-
-        lines = [
-            '# Generated by sonic-swss/bazel/generate.py. Do not edit.',
-            'load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")',
-            'load(":defs.bzl", "swss_cargo_binary")',
-            "",
-            'package(default_visibility = ["//visibility:public"])',
-            'exports_files(["inventory.json", "production_sources.bzl", "tools/build_cargo.py"])',
-            "",
-        ]
-        lines += rule("cc_library", {"name": "headers", "hdrs": ["src/" + name for name in sorted(self.headers)]})
-        for program in inventory["programs"]:
-            lines += rule(
-                "cc_binary",
-                {
-                    "name": program["name"],
-                    "srcs": ["src/" + name for name in program["sources"]],
-                    "copts": program["compile_options"],
-                    "linkopts": program["link_options"],
-                    "deps": [":headers"],
-                    "linkstatic": False,
-                },
-            )
-        lines += rule(
-            "swss_cargo_binary",
-            {
-                "name": "countersyncd",
-                "srcs": ["src/" + name for name in sorted(self.cargo_sources)],
-                "source_root": self.package + "/src",
-                "source_date_epoch": str(inventory["source_date_epoch"]),
-            },
-        )
-        return "\n".join(lines)
-
-    def render(self, epoch: int) -> dict[str, tuple[bytes, int]]:
-        self.read_make_tree()
-        self.read_headers_and_cargo()
-        self.read_vendor()
-        inventory = self.inventory(epoch)
-        rendered = {
-            "src/" + name: (path.read_bytes(), file_mode(path))
-            for name, path in sorted(self.inputs.items())
-        }
-        rendered["src/" + VENDOR_ARCHIVE] = (self.vendor_archive, 0o644)
-        rendered["src/.cargo/config.toml"] = (self.cargo_config, 0o644)
-        for name in ("defs.bzl", "build_cargo.py"):
-            path = self.source / "bazel" / name
-            if not path.is_file():
-                raise ValueError(f"missing Bazel support input: {path}")
-            destination = name if name.endswith(".bzl") else "tools/" + name
-            rendered[destination] = (path.read_bytes(), 0o644 if name.endswith(".bzl") else 0o755)
-        rendered["BUILD.bazel"] = (self.build_file(inventory).encode(), 0o644)
-        rendered["production_sources.bzl"] = (self.module_sources(inventory).encode(), 0o644)
-        rendered["inventory.json"] = ((json.dumps(inventory, indent=2, sort_keys=True) + "\n").encode(), 0o644)
-        rendered[MARKER] = (MARKER_CONTENT, 0o644)
-        for name in ("BUILD.bazel", "production_sources.bzl", "inventory.json"):
-            for root in (self.source, self.configured):
-                if str(root).encode() in rendered[name][0]:
-                    raise ValueError(f"generated {name} contains an absolute input path")
-        return rendered
-
-
-def synchronize(output: Path, rendered: dict[str, tuple[bytes, int]]) -> None:
-    if output.is_symlink():
-        raise ValueError("output package must not be a symlink")
-    output.mkdir(parents=True, exist_ok=True)
-    marker = output / MARKER
-    if any(output.iterdir()) and (not marker.is_file() or marker.read_bytes() != MARKER_CONTENT):
-        raise ValueError(f"refusing to replace an unowned output package: {output}")
-    for path in sorted(output.rglob("*"), reverse=True):
-        relative = path.relative_to(output).as_posix()
-        if path.is_symlink() or path.is_file():
-            if relative not in rendered:
-                path.unlink()
-        elif path.is_dir():
-            try:
-                path.rmdir()
-            except OSError:
-                # Directories with retained generated files must remain in place.
-                pass
-    for name, (contents, mode) in sorted(rendered.items()):
-        relative_path(name)
-        destination = output / name
-        for parent in destination.parents:
-            if parent == output:
-                break
-            if parent.is_symlink():
-                raise ValueError(f"output package contains a symlinked directory: {parent}")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if destination.is_file() and not destination.is_symlink() and destination.read_bytes() == contents and stat.S_IMODE(destination.stat().st_mode) == mode:
-            continue
-        with tempfile.NamedTemporaryFile(prefix=".sonic-bazel-", dir=destination.parent, delete=False) as stream:
-            temporary = Path(stream.name)
-            stream.write(contents)
-        temporary.chmod(mode)
-        os.replace(temporary, destination)
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument("--configured-build", required=True, type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--output-package", type=Path)
     mode.add_argument("--check-production-sources", type=Path, metavar="FILE")
+    mode.add_argument("--update-production-sources", type=Path, metavar="FILE")
     parser.add_argument("--output-build-contract", type=Path, metavar="FILE")
     parser.add_argument("--git-revision")
-    parser.add_argument("--cargo-vendor", type=Path)
-    parser.add_argument("--cargo-vendor-config", type=Path)
-    parser.add_argument("--workspace-package", default="swss")
-    parser.add_argument("--source-date-epoch", type=int)
     args = parser.parse_args()
     if args.output_build_contract is not None:
         if args.check_production_sources is None or args.git_revision is None:
@@ -815,39 +576,25 @@ def main() -> None:
         parser.error("--git-revision requires --output-build-contract")
     source = args.source.resolve()
     configured = args.configured_build.resolve()
-    if args.check_production_sources is not None:
-        generator = Generator(source, configured, args.workspace_package)
-        generator.read_make_tree()
-        inventory = generator.production_inventory()
-        generated = generator.module_sources(inventory).encode()
-        if args.check_production_sources.read_bytes() != generated:
-            parser.exit(1, f"{args.check_production_sources} does not match configured Automake production sources\n")
-        if args.output_build_contract is not None:
-            contract = generator.build_contract(inventory, hashlib.sha256(generated).hexdigest(), args.git_revision)
-            args.output_build_contract.parent.mkdir(parents=True, exist_ok=True)
-            args.output_build_contract.write_text(json.dumps(contract, indent=2, sort_keys=True) + "\n")
-            print(f"Wrote normalized native build contract to {args.output_build_contract}")
-        print(f"{args.check_production_sources} matches configured Automake production sources")
+    generator = Generator(source, configured)
+    generator.read_make_tree()
+    inventory = generator.production_inventory()
+    generated = generator.module_sources(inventory).encode()
+    if args.update_production_sources is not None:
+        destination = args.update_production_sources
+        if not destination.is_file() or destination.read_bytes() != generated:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(generated)
+        print(f"Updated {destination} from configured Automake production sources")
         return
-    if args.cargo_vendor is None or args.cargo_vendor_config is None:
-        parser.error("--cargo-vendor and --cargo-vendor-config are required with --output-package")
-    vendor = args.cargo_vendor.resolve()
-    output = args.output_package.absolute()
-    if any(output.resolve().is_relative_to(root) for root in (source, configured, vendor)):
-        raise ValueError("output package must be outside the source, configured, and vendor input trees")
-    if vendor.is_relative_to(source) or vendor.is_relative_to(configured):
-        raise ValueError("Cargo vendor directory must be outside the source and configured input trees")
-    if args.cargo_vendor_config.resolve().is_relative_to(output.resolve()):
-        raise ValueError("Cargo vendor configuration must be outside the generated output package")
-    changelog = str(source / "debian/changelog")
-    epoch = args.source_date_epoch
-    if epoch is None:
-        epoch = int(subprocess.check_output(["dpkg-parsechangelog", "-l", changelog, "-S", "Timestamp"], text=True).strip())
-    if epoch < 0:
-        raise ValueError("source date epoch must be non-negative")
-    generator = Generator(source, configured, args.workspace_package, args.cargo_vendor, args.cargo_vendor_config)
-    synchronize(output, generator.render(epoch))
-    print(f"Generated {len(generator.programs)} C++ targets, //{generator.package}:countersyncd, and production_sources.bzl")
+    if args.check_production_sources.read_bytes() != generated:
+        parser.exit(1, f"{args.check_production_sources} does not match configured Automake production sources\n")
+    if args.output_build_contract is not None:
+        contract = generator.build_contract(inventory, hashlib.sha256(generated).hexdigest(), args.git_revision)
+        args.output_build_contract.parent.mkdir(parents=True, exist_ok=True)
+        args.output_build_contract.write_text(json.dumps(contract, indent=2, sort_keys=True) + "\n")
+        print(f"Wrote normalized native build contract to {args.output_build_contract}")
+    print(f"{args.check_production_sources} matches configured Automake production sources")
 
 
 if __name__ == "__main__":
