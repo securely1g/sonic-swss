@@ -20,7 +20,7 @@ For an external module caller, use the
   native compiler/linker settings in a CI JSON artifact. It does not run during
   normal Bazel builds.
 - `bazel/production_graph.py` reads the configured Bazel graph for native
-  build comparison.
+  comparison and CodeQL source coverage.
 - `tools/bazel/cc.bzl` applies the common SWSS compiler options, release-specific
   fortification, and the native ASAN and GCOV source selections. The managed
   GCC toolchain supplies optimization and baseline hardening.
@@ -172,6 +172,24 @@ Use `--architecture arm64` on a native ARM64 host. Add `--mode clean` to use a
 fresh Bazel output base, disable action-result reuse, and run the normal process
 sandbox. The workflow supports the same mode through its `clean` input or a
 `Bazel-Clean: true` trailer on the PR head commit.
+
+The C++ CodeQL job builds the production programs, selected GCOV preload
+sources, and the DASH/Protobuf runtime test after analyzer initialization with
+action caches disabled. The test programs are compiled without executing them;
+packaging remains in native CI. The extraction receipt reads the retained production graph from its own build
+receipt and requires both native test source files alongside those production
+sources. It verifies the graph hash, checkout revision and build-definition
+digest without configuring Automake. Its tracing
+configuration excludes the pinned SAI and shared build-tools preparation
+actions, which start no C/C++ compiler, so CodeQL's preload does not enter
+their strict runtime dependency checks. The exception matches the exact
+preparation scripts, output paths, architectures and archive arguments; a Lua
+regression check runs before analyzer initialization. SAI metadata and SWSS
+sources compile in separate Bazel actions with the standard C++ matchers still
+active. The receipt requires
+extraction of all selected tracked sources and records additional and excluded
+source paths. It does not claim
+historical analyzer parity or runtime coverage.
 
 ## Separate runtime tar draft
 

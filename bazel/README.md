@@ -100,7 +100,8 @@ CI discovers production binaries and their selected sources through
 `//dist:cpp_binaries` using a configured Bazel query. It retains that graph in
 `production-graph.json`, together with the checkout revision, architecture,
 repository mapping, and a digest of the maintained build definitions. The
-build receipt binds the graph to its checksum.
+build receipt binds the graph to its checksum. CodeQL coverage reads this
+same retained graph from its build receipt and needs no Automake configuration.
 
 CI captures the root workspace's resolved production `cc_binary` rules with
 the build's release, architecture, and dependency settings. The bounded query
