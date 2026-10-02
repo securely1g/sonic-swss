@@ -33,7 +33,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-dash-api",
-    version = "0.0.4-93bace9700fdda7fa9e29d3c4041604084b06b45",
+    version = "0.0.4-38d0db44508e995a49d7994265c91ad97f023503",
     repo_name = "sonic_dash_api",
 )
 bazel_dep(
