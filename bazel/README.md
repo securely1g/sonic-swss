@@ -293,12 +293,7 @@ Put `8.5.1` in the caller's `.bazelversion` and add these settings to its
 
 ```text
 common --check_direct_dependencies=off
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/2f4012b01f7a73f24b12de64a0a9ae86a06b0e89
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/c999f3c9ebf59c5e2d8feaae8d5010fc9204ef92
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/473dda85dc87430fddfdf12ab55a05da21748069
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/805f6669493f8783371e36f15b79101cf09498db
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/02cc786838e5decb9e919ae7a53607e292dc07c6
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/codex/ci-compatible-registry
 common --registry=https://bcr.bazel.build/
 common --lockfile_mode=off
 common --noincompatible_disallow_empty_glob
@@ -308,14 +303,14 @@ common --@sonic_swss_common//tools/bazel:yang_modules=True
 build:release --compilation_mode=opt
 ```
 
-Keep these immutable registries in the same order as the SWSS `.bazelrc`, with
-BCR as the final fallback. Together they provide the selected build-infra,
-libnl3, Distroless, DASH, Common, SAI, and sairedis entries. The root libnl3 and
-Distroless overrides prevent higher-sorting dependency
-requests from replacing the selected SONiC fixes. Distroless
-`0.9.4-sonic.1` retains protobuf include fragments on AMD64 and ARM64. The last
-two SONiC snapshots add infrastructure 0.0.9 and this header fix while the
-earlier snapshots preserve the other dependency definitions.
+Use the same single SONiC registry branch as SWSS `.bazelrc`, followed by BCR.
+The reviewed `codex/ci-compatible-registry` branch retains the exact selected
+build-infra, libnl3, Distroless, DASH, Common, SAI and sairedis registrations;
+registry `main` lacks several of these historical entries. CI and local commands
+share this endpoint. Module versions, source archives/checksums, overlays and
+toolchain inputs remain pinned. The root libnl3 and Distroless overrides prevent
+higher-sorting dependency requests from replacing the selected SONiC fixes.
+Distroless `0.9.4-sonic.1` retains protobuf include fragments on AMD64 and ARM64.
 Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2`,
 `rules_distroless@0.9.4-sonic.1`, and
 `sonic-build-infra@0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d` are selected.
