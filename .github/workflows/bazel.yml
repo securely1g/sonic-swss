@@ -42,9 +42,9 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends \
             autoconf autoconf-archive automake autotools-dev binutils \
-            build-essential ca-certificates debhelper git libhiredis-dev \
+            build-essential ca-certificates debhelper gdb git libhiredis-dev \
             libjansson-dev libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev \
-            libnl-route-3-dev libteam-dev libtool pkg-config python3 tar
+            libnl-route-3-dev libteam-dev libtool libxml2 pkg-config python3 tar
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -208,6 +208,22 @@ jobs:
         with:
           name: sonic-swss-cpp-${{ matrix.architecture }}
           path: artifacts/production/
+          if-no-files-found: error
+
+      - name: Build and validate complete runtime and debug packages
+        env:
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          python3 bazel/ci_runtime_package.py
+          --architecture ${{ matrix.architecture }}
+          --native-contract "$RUNNER_TEMP/native-build-contract.json"
+          --artifact-directory artifacts/packages
+
+      - name: Upload runtime and matching debug packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sonic-swss-packages-${{ matrix.architecture }}
+          path: artifacts/packages/
           if-no-files-found: error
 
       - name: Report the source PR build check
