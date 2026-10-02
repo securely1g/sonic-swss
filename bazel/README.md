@@ -306,15 +306,19 @@ build:release --compilation_mode=opt
 Use the same single SONiC registry branch as SWSS `.bazelrc`, followed by BCR.
 The reviewed `codex/protobuf-312-integration` branch contains the exact selected
 build-infra, libnl3, Distroless, DASH, Common, SAI and sairedis registrations.
-The proposed Protobuf and DASH entries are not yet on registry `main`. CI and
-local commands share this endpoint. Module versions, source archives/checksums, overlays and
+Protobuf is available on registry `main`; the DASH entry remains proposed in
+[registry #19](https://github.com/securely1g/sonic-bazel-registry/pull/19).
+DASH version `0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069` selects the
+landed source commit on its maintained `master` branch. CI and local commands
+share this endpoint. Module versions, source archives/checksums, overlays and
 toolchain inputs remain pinned. The root libnl3 and Distroless overrides prevent
 higher-sorting dependency requests from replacing the selected SONiC fixes.
 Distroless `0.9.4-sonic.1` retains include fragments for shared infrastructure
 APT imports; Protobuf headers and its runtime are now source-built.
 Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2`,
 `rules_distroless@0.9.4-sonic.1`, `protobuf-legacy@3.21.12-sonic.1`, and
-`sonic-build-infra@0.0.14-f9876051703da05af745ffc781706e29fed7dd4b` are selected.
+`sonic-build-infra@0.0.14-f9876051703da05af745ffc781706e29fed7dd4b` are selected,
+alongside `sonic-dash-api@0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069`.
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
 RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
 `-Wdate-time` and `_FORTIFY_SOURCE=3` override. Infrastructure source
