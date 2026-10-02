@@ -7,9 +7,12 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import tarfile
+import tempfile
 
 from ci_production import ARCHITECTURES, ROOT, run, sha256
 from verify_runtime_package import read_contract, verify
+from verify_protobuf_runtime import build_and_validate
 
 
 TARGETS = {
@@ -73,6 +76,18 @@ def main():
     if report["native_contract"]["sha256"] != contract_provenance["sha256"]:
         raise ValueError("native contract changed during package build")
     report["native_contract"] = contract_provenance
+    with tempfile.TemporaryDirectory(prefix="swss-installed-orchagent-") as temporary:
+        binary = Path(temporary) / "orchagent"
+        with tarfile.open(packages["runtime"]) as archive:
+            members = [member for member in archive.getmembers()
+                       if member.name.removeprefix("./") == "usr/bin/orchagent"]
+            if len(members) != 1 or not members[0].isfile():
+                raise ValueError("runtime package must contain one installed orchagent")
+            binary.write_bytes(archive.extractfile(members[0]).read())
+        binary.chmod(0o755)
+        report["protobuf_runtime"] = build_and_validate(
+            ROOT, ["bazel"], options, run, args.architecture, binary,
+            artifact_directory / "dependencies")
     (artifact_directory / "validation.json").write_text(json.dumps(report, indent=2) + "\n")
     graph = run(["bazel", "mod", "graph", "--lockfile_mode=update", "--output=json", "--verbose"],
                 capture=True)
