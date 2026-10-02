@@ -7,9 +7,12 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import tarfile
+import tempfile
 
 from ci_production import ARCHITECTURES, ROOT, run, sha256
 from verify_runtime_package import verify
+from verify_protobuf_runtime import build_and_validate
 
 
 TARGETS = {
@@ -40,7 +43,7 @@ def main():
     artifact_directory.mkdir(parents=True, exist_ok=True)
     options = [
         "--config=release",
-        "--lockfile_mode=off",
+        "--lockfile_mode=update",
         "--platforms=" + target_platform,
         "--jobs=4",
         "--noshow_progress",
@@ -64,13 +67,29 @@ def main():
     if packages["runtime"] == packages["debug"]:
         raise ValueError("runtime and debug outputs must be distinct")
     report = verify(ROOT, packages["runtime"], packages["debug"], args.architecture)
+    with tempfile.TemporaryDirectory(prefix="swss-installed-orchagent-") as temporary:
+        binary = Path(temporary) / "orchagent"
+        with tarfile.open(packages["runtime"]) as archive:
+            members = [member for member in archive.getmembers()
+                       if member.name.removeprefix("./") == "usr/bin/orchagent"]
+            if len(members) != 1 or not members[0].isfile():
+                raise ValueError("runtime package must contain one installed orchagent")
+            binary.write_bytes(archive.extractfile(members[0]).read())
+        binary.chmod(0o755)
+        report["protobuf_runtime"] = build_and_validate(
+            ROOT, ["bazel"], options, run, args.architecture, binary,
+            artifact_directory / "dependencies")
     (artifact_directory / "validation.json").write_text(json.dumps(report, indent=2) + "\n")
-    graph = run(["bazel", "mod", "graph", "--lockfile_mode=off", "--output=json", "--verbose"],
+    graph = run(["bazel", "mod", "graph", "--lockfile_mode=update", "--output=json", "--verbose"],
                 capture=True)
     graph_data = json.loads(graph)
     if not isinstance(graph_data, dict) or not graph_data:
         raise ValueError("empty resolved module graph")
     (artifact_directory / "module-graph.json").write_text(json.dumps(graph_data, indent=2) + "\n")
+    lock = ROOT / "MODULE.bazel.lock"
+    if not lock.is_file() or not lock.stat().st_size:
+        raise ValueError("Bazel did not generate its dependency lock")
+    shutil.copy2(lock, artifact_directory / lock.name)
     manifest = {
         "revision": run(["git", "rev-parse", "HEAD"], capture=True).strip(),
         "tree": run(["git", "rev-parse", "HEAD^{tree}"], capture=True).strip(),
@@ -86,8 +105,8 @@ def main():
         "target_platform": target_platform,
         "configuration": "release, shared runtime/debug split",
         "targets": TARGETS,
-        "artifacts": {path.name: {"sha256": sha256(path), "bytes": path.stat().st_size}
-                      for path in sorted(artifact_directory.iterdir())},
+        "artifacts": {str(path.relative_to(artifact_directory)): {"sha256": sha256(path), "bytes": path.stat().st_size}
+                      for path in sorted(artifact_directory.rglob("*")) if path.is_file()},
     }
     (artifact_directory / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps({"installed_files": report["installed_files"],
