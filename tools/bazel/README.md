@@ -25,7 +25,7 @@ For an external module caller, use the
   fortification, and the native ASAN and GCOV source selections. The managed
   GCC toolchain supplies optimization and baseline hardening.
 - `tools/bazel/deps.bzl` groups dependency labels by component.
-- `dist/BUILD.bazel` contains a separate runtime tar draft.
+- `dist/BUILD.bazel` packages the runtime payload and its matching debug symbols.
 
 Maintain production sources in the component BUILD files alongside their
 Automake declarations. Small shared lists avoid repeated inputs, such as the
@@ -40,10 +40,21 @@ toolchains target Debian Trixie. They execute on the same CPU they target:
 the default configuration is Linux x86-64, and `--config=aarch64` requires an
 Arm64 build host.
 
-The separate `//crates/countersyncd:countersyncd` target uses `rules_rust`,
-bindgen, and Clang and remains a draft migration. An external caller must
-register the managed GCC toolchain in its root module; the canonical caller
-guide includes that registration.
+The `//crates/countersyncd:countersyncd` target uses
+`rules_rust`, bindgen, and Clang. `Cargo.Bazel.lock` records the Bazel crate
+metadata needed when SWSS is consumed as a dependency; `Cargo.lock` remains
+the source dependency lock. To refresh Bazel metadata from that lock, build
+with `--repo_env=CARGO_BAZEL_REPIN=1` in the standalone SWSS workspace.
+
+The consuming root supplies and registers a bindgen toolchain; standalone
+SWSS uses LLVM 17.0.6 and bindgen 0.71.1. The example registration is in
+`tools/bazel/rust/dev/BUILD.bazel`. LLVM selection is development-only because
+its module extension requires the root module. Rust 1.90 with the C++ linker
+also requires the root build option
+`--@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=True`,
+as set in the standalone `.bazelrc`.
+An external caller must register the managed GCC toolchain in its root module;
+the canonical caller guide includes that registration.
 
 ## SONiC dependency inputs
 
@@ -101,16 +112,16 @@ Build one C++ program during development:
 bazel build --config=release //orchagent:orchagent
 ```
 
-Build the separate `rules_rust` draft:
+Build the Rust program:
 
 ```sh
 bazel build --config=release //crates/countersyncd:countersyncd
 ```
 
-Build the separate runtime tar draft:
+Build the runtime and matching detached debug tars:
 
 ```sh
-bazel build --config=release //dist:swss_pkg
+bazel build --config=release //dist:swss_pkg //dist:swss_pkg.debug_symbols
 ```
 
 `//:swss_pkg` is an alias for the same tar target. Use `bazel cquery` with the
@@ -190,12 +201,42 @@ extraction of all selected tracked sources and records additional and excluded
 source paths. It does not claim
 historical analyzer parity or runtime coverage.
 
-## Separate runtime tar draft
+## Runtime and matching debug packages
 
 `//dist:swss_pkg` is a runtime tar containing 29 C++ programs, `countersyncd`,
 two Python helpers, 32 Lua files, and the `netbouncer.json` configuration.
 It installs these files under the same runtime paths described by Automake and
-`debian/swss.install`.
+`debian/swss.install`. The package declares its program and data lists directly
+in `dist/BUILD.bazel`, including the three VS Lua names that install Mellanox
+implementations. Validation compares those outputs with the independently
+configured native build's JSON contract and the Debian install list.
+The runtime tar carries
+`DebugSymbolsInfo`, allowing the consuming OCI image to collect its symbols.
+
+`//dist:swss_pkg.debug_symbols` contains the detached symbols under
+`usr/lib/debug/.build-id`. Both tars are split from the same linked ELFs.
+The shared packaging rule retains C++ debug information without changing the
+selected optimization mode; the Rust targets retain their own source-line
+information explicitly. Root aliases exist for both package targets.
+
+Validate the installed paths, data bytes, ownership, permissions, ELF
+architecture, build IDs, debug-link checksums, and GDB source-line lookup with:
+
+```sh
+python3 bazel/verify_runtime_package.py --architecture amd64 \
+  --native-contract /absolute/path/to/native-build-contract.json \
+  --runtime bazel-bin/dist/swss_pkg_rttar.tar \
+  --debug bazel-bin/dist/swss_pkg.debug_symbols.tar
+```
+
+Generate the native contract in the same checkout and native architecture using
+the [native build check guide](../../bazel/README.md#compare-native-and-bazel-build-settings).
+The verifier rejects a contract for a different revision or architecture. It
+compares every installed path, mode, and data file with the native inventory;
+changing a BUILD list cannot change the verifier's expected results.
+
+Use `bazel cquery --config=release --output=files` for the exact output paths
+when the output layout differs.
 
 The tar has no Debian control metadata, maintainer scripts, or dependency
 declarations.
