@@ -234,8 +234,14 @@ Native CI keeps the existing production and hardening checks, and also runs
 `//bazel:protobuf_runtime_test` against orchagent's declared dependency set. It
 serializes a DASH message and verifies that the loaded Protobuf functions belong
 to one shared runtime. The actual orchagent executable is checked with the native
-loader using separately staged source-built DASH and Protobuf runtime archives;
-this checks dependency loading without starting Redis or SAI daemon behavior.
+loader's `--list` option using separately staged source-built DASH and Protobuf
+runtime archives. The ELF bytes remain unchanged. For this temporary stage,
+`--inhibit-rpath ""` and `--library-path` select the staged libraries, and exact
+path checks reject fallback to another Protobuf or DASH library. The separate
+native test executes DASH serialization against these packaged libraries.
+This does not check complete orchagent relocation, default installed-system
+library search paths, or Redis/SAI daemon behavior. Existing package and RPATH
+checks remain separate.
 Both dependencies' matching debug archives, ELF identities, build IDs and debug
 checksums are retained with the evidence. SWSS's own installed inventory stays
 separate from these dependency payloads.

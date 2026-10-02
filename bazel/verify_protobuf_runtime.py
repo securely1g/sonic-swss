@@ -1,4 +1,4 @@
-"""Check the real orchagent loader closure and packaged DASH/Protobuf runtime."""
+"""Check staged orchagent dependencies and execute the DASH/Protobuf runtime."""
 
 import hashlib
 import json
@@ -90,7 +90,7 @@ def check_debug(binary, root, machine):
 
 
 def validate(execution_root, orchagent, probe, libraries, archives, architecture, evidence):
-    """Stage declared dependencies, then load the actual SWSS executable."""
+    """Inspect staged SWSS dependencies and execute a native DASH round trip."""
     machine = {"amd64": 62, "arm64": 183}[architecture]
     with tempfile.TemporaryDirectory(prefix="swss-protobuf-runtime-") as temporary:
         root = Path(temporary)
@@ -138,8 +138,19 @@ def validate(execution_root, orchagent, probe, libraries, archives, architecture
             environment.pop(variable, None)
         environment["LD_LIBRARY_PATH"] = ":".join(map(str, runtime_directories))
         environment["LD_BIND_NOW"] = "1"
-        # ldd resolves the actual production binary without starting Redis/SAI.
-        loader = command("ldd", str(orchagent), env=environment)
+        staged_orchagent = root / "usr/bin/orchagent"
+        staged_orchagent.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(orchagent, staged_orchagent)
+        require(sha(staged_orchagent) == sha(orchagent), "Staging changed the executable")
+        match = re.search(r"Requesting program interpreter: ([^]]+)",
+                          command("readelf", "-l", str(staged_orchagent)))
+        require(match and Path(match[1]).is_file(), "Missing native ELF interpreter")
+        # This temporary install root is outside /usr. Ignore the main ELF
+        # RPATH so its old Bazel runfiles and host /usr cannot outrank the
+        # explicit stage; exact library paths below make fallback a failure.
+        native_loader = [match[1], "--inhibit-rpath", "",
+                         "--library-path", environment["LD_LIBRARY_PATH"]]
+        loader = command(*native_loader, "--list", str(staged_orchagent), env=environment)
         require("not found" not in loader, "Unresolved orchagent shared dependency: " + loader)
         loaded = re.findall(r"libprotobuf[^\s]* => (\S+)", loader)
         require(len(loaded) == 1 and Path(loaded[0]).resolve() == protobuf.resolve(),
@@ -152,18 +163,19 @@ def validate(execution_root, orchagent, probe, libraries, archives, architecture
             defined = command("nm", "-D", "--defined-only", "--demangle", str(binary))
             require(not re.search(r"\b[TDB] google::protobuf::(?:Message::DebugString|DescriptorPool::generated_pool|internal::VerifyVersion)", defined),
                     "Consumer embeds Protobuf runtime implementation: " + str(binary))
-        output = command(str(probe), env=environment)
+        output = command(*native_loader, str(probe), env=environment)
         values = dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
         require(values.get("protobuf_version") == "3021012" and values.get("dash_roundtrip") == "passed", "DASH serialization failed: " + output)
         require(Path(values["protobuf_library"]).resolve() == protobuf.resolve() and
                 Path(values["protobuf_loaded"]).resolve() == protobuf.resolve(), "DASH probe loaded a different Protobuf runtime")
         pairs = [check_debug(path, root, machine) for path in (protobuf, dash)]
         result = {"architecture": architecture, "protobuf_version": "3.21.12", "runtime_count": 1,
-                  "orchagent": {"sha256": sha(orchagent), "loader": loader.replace(str(root), "<stage>")},
+                  "orchagent": {"sha256": sha(orchagent), "loader": loader.replace(str(root), "<stage>"),
+                                "loader_command": [part.replace(str(root), "<stage>") for part in native_loader] + ["--list", "<stage>/usr/bin/orchagent"]},
                   "dash_roundtrip": "passed", "probe": output.replace(str(root), "<stage>"),
                   "dependency_debug_pairs": pairs, "declared_libraries": library_records,
                   "skipped_library_inputs": skipped_libraries, "linked_dependency_inputs": linked_inputs,
-                  "scope": "Real orchagent loader closure and native DASH serialization; daemon behavior is not exercised."}
+                  "scope": "Staged dependency selection for unchanged orchagent ELF bytes; a separate native probe executes DASH serialization with the packaged libraries. The native loader ignores main-program RPATH for the temporary stage; complete orchagent relocation, default installed-system search paths and daemon behavior are not verified."}
     (evidence / "protobuf-runtime.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
 
@@ -174,7 +186,15 @@ def build_and_validate(source, bazel, options, run, architecture, orchagent, evi
     run(bazel + ["build"] + options + list(TARGETS.values()) + [LIBRARIES, PROBE],
         log=evidence / "build.log")
 
-    execution_root = Path(run(bazel + ["info"] + options + ["execution_root"], capture=True).strip())
+    # The preceding build creates this standard workspace symlink. Resolving it
+    # avoids `bazel info` interpreting the external platform flags without the
+    # module repository mapping that build/cquery use.
+    output_link = source / "bazel-out"
+    require(output_link.is_symlink(), "Missing Bazel output symlink")
+    execution_root = output_link.resolve(strict=True).parent
+    require(execution_root.parent.name == "execroot" and
+            (execution_root / "MODULE.bazel").samefile(source / "MODULE.bazel"),
+            "Bazel output symlink does not identify this checkout execution root")
 
     def outputs(target):
         return [execution_root / path for path in run(bazel + ["cquery"] + options + [target, "--output=files"], capture=True).splitlines()]
