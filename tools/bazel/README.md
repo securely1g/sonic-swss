@@ -132,6 +132,45 @@ The shared GCOV preload library is explicitly retained for its startup
 constructor even with `--as-needed`. These flags do not instrument Rust,
 matching the native build's separate Cargo invocation.
 
+## CI validation
+
+The Bazel workflow builds the normal Trixie release configuration on native
+AMD64 and ARM64 runners. It derives explicit program labels from
+`bazel/production_sources.bzl`, builds each label and `//dist:cpp_binaries`, and
+checks that the aggregate contains exactly one executable per program. It also
+checks the ELF architecture, position-independent executable format, RELRO,
+and immediate symbol binding. Both architectures also execute
+`//gcovpreload:gcovpreload_test` with test-result reuse disabled, proving that
+the constructor-only preload library installs its signal handlers at startup.
+Each native job configures Automake, verifies the generated source map, and
+records that architecture's compiler and linker contract. The configured-rule
+comparison checks the 29 Bazel programs' sources, target options, local include
+order, and mapped dependency labels. The job also runs the pinned Buildifier
+formatting check.
+
+The uploaded inspection bundle contains the executables, build and test logs,
+the resolved module graph, the normalized native contract, the configured-rule
+capture, the comparison result, and a JSON build receipt binding inputs and
+outputs to their checksums and source revision. Toolchain actions, response
+files, transitive provider paths, external header precedence, native link
+ordering, and runtime equivalence remain outside this check.
+
+Run the same check in a native Debian Trixie environment after configuring
+Automake, recording the native contract as described in the
+[generator guide](../../bazel/README.md#compare-native-and-bazel-build-settings):
+
+```sh
+python3 bazel/ci_production.py build \
+  --architecture amd64 \
+  --native-contract /absolute/path/to/native-build-contract.json \
+  --artifact-directory /absolute/path/to/empty-output-directory
+```
+
+Use `--architecture arm64` on a native ARM64 host. Add `--mode clean` to use a
+fresh Bazel output base, disable action-result reuse, and run the normal process
+sandbox. The workflow supports the same mode through its `clean` input or a
+`Bazel-Clean: true` trailer on the PR head commit.
+
 ## Separate runtime tar draft
 
 `//dist:swss_pkg` is a runtime tar containing 29 C++ programs, `countersyncd`,
@@ -165,3 +204,31 @@ build --remote_cache=grpcs://cache.example.com
 Cache service deployment is independent of these SWSS build targets. See
 [Bazel remote caching](https://bazel.build/remote/caching) for supported
 backends and configuration.
+
+## Source Protobuf runtime validation
+
+SWSS and DASH share the source-built Protobuf 3.21.12 runtime from
+`protobuf-legacy`, whose consumer target links `libprotobuf.so.32`. The compiler
+used by DASH is built from the same upstream release. SWSS's own APT dependency
+set does not import Protobuf headers or runtime libraries. The selected Common
+ZeroMQ transport uses its binary serializer; the selected SAI Redis libraries do
+not enable the optional gRPC/DASH-SAI backend.
+
+Native CI keeps the existing production and hardening checks, and also runs
+`//bazel:protobuf_runtime_test` against orchagent's declared dependency set. It
+serializes a DASH message and verifies that the loaded Protobuf functions belong
+to one shared runtime. The actual orchagent executable is checked with the native
+loader's `--list` option using separately staged source-built DASH and Protobuf
+runtime archives. The ELF bytes remain unchanged. For this temporary stage,
+`--inhibit-rpath ""` and `--library-path` select the staged libraries, and exact
+path checks reject fallback to another Protobuf or DASH library. The separate
+native test executes DASH serialization against these packaged libraries.
+This does not check complete orchagent relocation, default installed-system
+library search paths, or Redis/SAI daemon behavior. Existing package and RPATH
+checks remain separate.
+Both dependencies' matching debug archives, ELF identities, build IDs and debug
+checksums are retained with the evidence. SWSS's own installed inventory stays
+separate from these dependency payloads.
+
+CI resolves the SONiC registry `main` branch plus BCR. It generates the ignored
+`MODULE.bazel.lock` and retains it alongside the resolved module graph.
