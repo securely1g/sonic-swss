@@ -51,13 +51,16 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            binutils build-essential ca-certificates git python3 tar
+            binutils build-essential ca-certificates git lua5.4 python3 tar
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Configure Git for the container checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Check the tool-preparation tracing boundary
+        run: lua5.4 .github/codeql/test-preparation-tracing.lua
 
       # Initialize tracing before any Bazel process starts.
       - name: Initialize CodeQL

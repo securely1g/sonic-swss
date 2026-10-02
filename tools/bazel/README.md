@@ -179,10 +179,13 @@ sources, and the DASH/Protobuf runtime test after analyzer initialization with
 action caches disabled. The test programs are compiled without executing them;
 packaging remains in native CI. The extraction receipt requires both native
 test source files alongside the production sources. Its tracing
-configuration excludes only SAI's locked tool preparation action, which starts
-no compiler, so CodeQL's preload does not enter that action's strict runtime
-dependency check. SAI metadata and SWSS sources compile in separate Bazel
-actions with the standard C++ matchers still active. The receipt requires
+configuration excludes the pinned SAI and shared build-tools preparation
+actions, which start no C/C++ compiler, so CodeQL's preload does not enter
+their strict runtime dependency checks. The exception matches the exact
+preparation scripts, output paths, architectures and archive arguments; a Lua
+regression check runs before analyzer initialization. SAI metadata and SWSS
+sources compile in separate Bazel actions with the standard C++ matchers still
+active. The receipt requires
 extraction of all selected tracked sources and records additional and excluded
 source paths. It does not claim
 historical analyzer parity or runtime coverage.
