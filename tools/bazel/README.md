@@ -171,6 +171,22 @@ fresh Bazel output base, disable action-result reuse, and run the normal process
 sandbox. The workflow supports the same mode through its `clean` input or a
 `Bazel-Clean: true` trailer on the PR head commit.
 
+The C++ CodeQL job builds the production programs, selected GCOV preload
+sources, and the DASH/Protobuf runtime test after analyzer initialization with
+action caches disabled. The test programs are compiled without executing them;
+packaging remains in native CI. The extraction receipt requires both native
+test source files alongside the production sources. Its tracing
+configuration excludes the pinned SAI and shared build-tools preparation
+actions, which start no C/C++ compiler, so CodeQL's preload does not enter
+their strict runtime dependency checks. The exception matches the exact
+preparation scripts, output paths, architectures and archive arguments; a Lua
+regression check runs before analyzer initialization. SAI metadata and SWSS
+sources compile in separate Bazel actions with the standard C++ matchers still
+active. The receipt requires
+extraction of all selected tracked sources and records additional and excluded
+source paths. It does not claim
+historical analyzer parity or runtime coverage.
+
 ## Separate runtime tar draft
 
 `//dist:swss_pkg` is a runtime tar containing 29 C++ programs, `countersyncd`,
