@@ -1,14 +1,9 @@
 common --check_direct_dependencies=off
 common --noincompatible_disallow_empty_glob
 
-# Preserve the historical dependency definitions; the last two SONiC snapshots
-# add build-infra and the native protobuf header fix without replacing them.
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/2f4012b01f7a73f24b12de64a0a9ae86a06b0e89
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/97dea0f4d4254de4fe17c56a6ceaf17b001cc4ce
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/c999f3c9ebf59c5e2d8feaae8d5010fc9204ef92
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/473dda85dc87430fddfdf12ab55a05da21748069
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/805f6669493f8783371e36f15b79101cf09498db
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/02cc786838e5decb9e919ae7a53607e292dc07c6
+# One reviewed registry branch retains the selected historical module definitions.
+# Keep module versions, source checksums and toolchain inputs pinned.
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/codex/ci-compatible-registry
 common --registry=https://bcr.bazel.build/
 
 # sonic-buildimage supplies checkout overrides when this repository is a submodule.

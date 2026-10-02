@@ -74,10 +74,14 @@ for normal C++ builds.
 
 ## Build commands
 
-The repository's ordered immutable registries select `sonic-build-infra
+The shared `.bazelrc` uses the reviewed SONiC registry branch
+`codex/ci-compatible-registry`, followed by BCR, for CI and local commands.
+That single endpoint preserves the selected `sonic-build-infra
 0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d`, `libnl3 3.7.0-sonic.2`,
-`rules_distroless 0.9.4-sonic.1`, and the declared DASH, Common, SAI, and sairedis
-modules, followed by BCR. The canonical caller guide includes the same registry order.
+`rules_distroless 0.9.4-sonic.1`, and the declared DASH, Common, SAI and sairedis
+entries. Several selected historical entries are absent from registry `main`.
+Module/source versions and hashes remain pinned. The canonical caller guide
+uses the same endpoint.
 `MODULE.bazel` overrides libnl3 and Distroless versions because higher-sorting
 dependency requests would otherwise replace the selected SONiC fixes. Distroless
 retains protobuf include fragments on AMD64 and ARM64. The module also
