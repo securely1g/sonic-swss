@@ -4,6 +4,7 @@
 *.lo
 *.o
 *.pyc
+MODULE.bazel.lock
 
 # Packaging Files #
 ###################

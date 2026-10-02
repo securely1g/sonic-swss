@@ -45,7 +45,7 @@ MODULE_INCLUDE_ROOTS = {
 MODULE_BUILD_MAPPINGS = {
     "reviewed_infra": {
         "module": "sonic-build-infra",
-        "version": "0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d",
+        "version": "0.0.14-ac6583668dbb92421b48009119f3472ee3e40b27",
     },
     "include_roots": {
         "<swss>": "component_headers",
@@ -125,7 +125,7 @@ MODULE_BUILD_MAPPINGS = {
         "nl-genl-3": "@libnl3//:libnl_genl_3",
         "nl-nf-3": "@libnl3//:libnl_nf_3",
         "nl-route-3": "@libnl3//:libnl_route_3",
-        "protobuf": "@swss_debian//libprotobuf-dev:libprotobuf",
+        "protobuf": "@protobuf_legacy//:libprotobuf",
         "pthread": "toolchain:libc",
         "saimeta": "@sonic_sairedis//meta:saimeta_shared",
         "saimetadata": "@sonic_sairedis//meta:saimetadata_shared",

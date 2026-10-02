@@ -26,7 +26,7 @@ SOURCE_MAP = ROOT / "bazel/production_sources.bzl"
 AGGREGATE = "//dist:cpp_binaries"
 GCOV_PRELOAD_TEST = "//gcovpreload:gcovpreload_test"
 CODEQL_COMPILE_TARGETS = [GCOV_PRELOAD_TEST]
-NATIVE_TEST_TARGETS = [GCOV_PRELOAD_TEST]
+NATIVE_TEST_TARGETS = [GCOV_PRELOAD_TEST, "//bazel:protobuf_runtime_test"]
 CODEQL_TEST_SOURCES = {"gcovpreload/gcovpreload_test.cpp"}
 CODEQL_FEATURE_SOURCES = {"gcovpreload/gcovpreload.cpp"}
 FEATURE_SOURCE_BOUNDARIES = CODEQL_FEATURE_SOURCES | {"lib/asan.cpp", "lib/asan_ctor.cpp"}
@@ -237,7 +237,7 @@ def build(args: argparse.Namespace) -> None:
         raise ValueError(f"CI requires Bazel {bazel_version}")
     options = [
         "--config=release",
-        "--lockfile_mode=off",
+        "--lockfile_mode=update",
         f"--platforms={target_platform}",
         "--noshow_progress",
         "--color=no",
@@ -290,7 +290,7 @@ def build(args: argparse.Namespace) -> None:
 
     module_graph = run(
         bazel + [
-            "mod", "graph", "--lockfile_mode=off",
+            "mod", "graph", "--lockfile_mode=update",
             "--output=json", "--verbose", "--noshow_progress", "--color=no", "--curses=no",
         ],
         capture=True,
@@ -322,7 +322,7 @@ def build(args: argparse.Namespace) -> None:
             raise ValueError("Bazel returned empty or invalid configured production rules")
         repository_mapping = json.loads(run(
             bazel + [
-                "mod", "dump_repo_mapping", "", "--lockfile_mode=off",
+                "mod", "dump_repo_mapping", "", "--lockfile_mode=update",
                 "--noshow_progress", "--color=no", "--curses=no",
             ],
             capture=True,
@@ -378,6 +378,18 @@ def build(args: argparse.Namespace) -> None:
             receipt["artifact"] = f"bin/{name}"
         receipts.append(receipt)
 
+    protobuf_runtime = None
+    if args.mode != "codeql":
+        from verify_protobuf_runtime import build_and_validate
+        protobuf_runtime = build_and_validate(
+            ROOT, bazel, options, run, args.architecture,
+            ROOT / outputs[labels["orchagent"]][0], artifact_directory / "dependencies")
+    generated_lock = artifact_directory / "MODULE.bazel.lock"
+    require_lock = ROOT / "MODULE.bazel.lock"
+    if not require_lock.is_file() or not require_lock.stat().st_size:
+        raise ValueError("Bazel did not generate its dependency lock")
+    shutil.copy2(require_lock, generated_lock)
+
     receipt = {
         "schema_version": 2,
         "artifact_type": "cpp_executables",
@@ -402,6 +414,12 @@ def build(args: argparse.Namespace) -> None:
         "module_graph": {"artifact": module_graph_path.name, "sha256": sha256(module_graph_path)},
         "additional_compile_targets": additional_compile_targets,
         "runtime_tests": runtime_tests,
+        "protobuf_runtime": protobuf_runtime,
+        "dependency_artifacts": {
+            str(path.relative_to(artifact_directory)): {"sha256": sha256(path), "bytes": path.stat().st_size}
+            for path in sorted((artifact_directory / "dependencies").rglob("*")) if path.is_file()
+        },
+        "generated_module_lock": {"artifact": generated_lock.name, "sha256": sha256(generated_lock)},
         "source_files": sorted(sources),
         "programs": receipts,
     }

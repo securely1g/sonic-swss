@@ -61,12 +61,10 @@ Common revision `093a849f01722afb4730e685b3eb4f22a9bc9191` generates its
 configuration schema from source inputs with YANG enabled. SAI and sairedis
 provide their headers and libraries through their own module targets.
 
-DASH retains an input package containing its generated headers and
-`libdashapi.so`. Its module selects the native AMD64 or ARM64 package and checks
-the recorded SHA-256 of `libdashapi_1.0.0_<architecture>.deb` before exposing
-those files. The package is obtained from a pipeline artifact ZIP; the pinned
-hash applies to the selected package member. SWSS declares protobuf separately
-through `@swss_debian//libprotobuf-dev:libprotobuf`.
+DASH generates its headers and builds `libdashapi.so` from its pinned source
+using the source-built Protobuf 3.21.12 compiler. SWSS and DASH both use the
+shared runtime `@protobuf_legacy//:libprotobuf`, built from that same upstream
+release; neither consumer links a separate static Protobuf implementation.
 
 The remaining Debian development libraries use the declared `trixie` and
 `swss_debian` dependency sets. `MODULE.bazel` and `.bazelrc` select these inputs
@@ -75,16 +73,17 @@ for normal C++ builds.
 ## Build commands
 
 The shared `.bazelrc` uses the reviewed SONiC registry branch
-`codex/ci-compatible-registry`, followed by BCR, for CI and local commands.
+`codex/protobuf-312-integration`, followed by BCR, for CI and local commands.
 That single endpoint preserves the selected `sonic-build-infra
-0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d`, `libnl3 3.7.0-sonic.2`,
+0.0.14-ac6583668dbb92421b48009119f3472ee3e40b27`, `libnl3 3.7.0-sonic.2`,
 `rules_distroless 0.9.4-sonic.1`, and the declared DASH, Common, SAI and sairedis
 entries. Several selected historical entries are absent from registry `main`.
 Module/source versions and hashes remain pinned. The canonical caller guide
 uses the same endpoint.
 `MODULE.bazel` overrides libnl3 and Distroless versions because higher-sorting
 dependency requests would otherwise replace the selected SONiC fixes. Distroless
-retains protobuf include fragments on AMD64 and ARM64. The module also
+retains include fragments needed by shared infrastructure APT imports.
+Protobuf headers and its runtime are now source-built. The module also
 selects RE2 `2024-07-02.bcr.1`, whose BCR metadata repair marks its obsolete
 local C++ extension as a development dependency while retaining the same source
 archive. External root callers need all three overrides for this selection, as
@@ -218,3 +217,26 @@ build --remote_cache=grpcs://cache.example.com
 Cache service deployment is independent of these SWSS build targets. See
 [Bazel remote caching](https://bazel.build/remote/caching) for supported
 backends and configuration.
+
+## Source Protobuf runtime validation
+
+SWSS and DASH share the source-built Protobuf 3.21.12 runtime from
+`protobuf-legacy`, whose consumer target links `libprotobuf.so.32`. The compiler
+used by DASH is built from the same upstream release. SWSS's own APT dependency
+set does not import Protobuf headers or runtime libraries. The selected Common
+ZeroMQ transport uses its binary serializer; the selected SAI Redis libraries do
+not enable the optional gRPC/DASH-SAI backend.
+
+Native CI keeps the existing production and hardening checks, and also runs
+`//bazel:protobuf_runtime_test` against orchagent's declared dependency set. It
+serializes a DASH message and verifies that the loaded Protobuf functions belong
+to one shared runtime. The actual orchagent executable is checked with the native
+loader using separately staged source-built DASH and Protobuf runtime archives;
+this checks dependency loading without starting Redis or SAI daemon behavior.
+Both dependencies' matching debug archives, ELF identities, build IDs and debug
+checksums are retained with the evidence. SWSS's own installed inventory stays
+separate from these dependency payloads.
+
+CI resolves one reviewed registry branch,
+`codex/protobuf-312-integration`, plus BCR. It generates the ignored
+`MODULE.bazel.lock` and retains it alongside the resolved module graph.

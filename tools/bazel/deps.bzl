@@ -22,7 +22,7 @@ ORCHAGENT_DEPS = CFGMGR_DEPS + [
     "@sonic_dash_api//:dashapi",
     "@sonic_sairedis//lib:sairedis_shared",
     "@swss_debian//libjemalloc-dev:libjemalloc",
-    "@swss_debian//libprotobuf-dev:libprotobuf",
+    "@protobuf_legacy//:libprotobuf",
     "@swss_debian//libyaml-cpp-dev:libyaml-cpp",
 ]
 

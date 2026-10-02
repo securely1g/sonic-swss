@@ -253,7 +253,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d",
+    version = "0.0.14-ac6583668dbb92421b48009119f3472ee3e40b27",
     repo_name = "sonic_build_infra",
 )
 
@@ -293,9 +293,9 @@ Put `8.5.1` in the caller's `.bazelversion` and add these settings to its
 
 ```text
 common --check_direct_dependencies=off
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/codex/ci-compatible-registry
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/codex/protobuf-312-integration
 common --registry=https://bcr.bazel.build/
-common --lockfile_mode=off
+common --lockfile_mode=update
 common --noincompatible_disallow_empty_glob
 common --platforms=@sonic_build_infra//platforms:x86_64_trixie
 common --@sonic_swss_common//tools/bazel:yang_modules=True
@@ -304,25 +304,27 @@ build:release --compilation_mode=opt
 ```
 
 Use the same single SONiC registry branch as SWSS `.bazelrc`, followed by BCR.
-The reviewed `codex/ci-compatible-registry` branch retains the exact selected
+The reviewed `codex/protobuf-312-integration` branch retains the exact selected
 build-infra, libnl3, Distroless, DASH, Common, SAI and sairedis registrations;
 registry `main` lacks several of these historical entries. CI and local commands
 share this endpoint. Module versions, source archives/checksums, overlays and
 toolchain inputs remain pinned. The root libnl3 and Distroless overrides prevent
 higher-sorting dependency requests from replacing the selected SONiC fixes.
-Distroless `0.9.4-sonic.1` retains protobuf include fragments on AMD64 and ARM64.
+Distroless `0.9.4-sonic.1` retains include fragments for shared infrastructure
+APT imports; Protobuf headers and its runtime are now source-built.
 Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2`,
-`rules_distroless@0.9.4-sonic.1`, and
-`sonic-build-infra@0.0.9-c4175cb61c79b3b7b70901724fddbe2cd35ff86d` are selected.
+`rules_distroless@0.9.4-sonic.1`, `protobuf-legacy@3.21.12-sonic.1`, and
+`sonic-build-infra@0.0.14-ac6583668dbb92421b48009119f3472ee3e40b27` are selected.
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
 RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
 `-Wdate-time` and `_FORTIFY_SOURCE=3` override. Infrastructure source
-[`c4175cb`](https://github.com/securely1g/sonic-build-infra/commit/c4175cb61c79b3b7b70901724fddbe2cd35ff86d)
+[`ac65836`](https://github.com/securely1g/sonic-build-infra/commit/ac6583668dbb92421b48009119f3472ee3e40b27)
 also supplies `-Wl,-rpath-link=/lib/<multiarch>` for link-time dependency lookup;
 this does not embed an ELF runtime search path. The reviewed contract records
 this architecture-specific setting. The unused opt-in `as_needed` feature alias
 was removed upstream; the default `--as-needed` argument remains enabled.
-The caller disables lockfile use for this registry iteration. The Common flag
+Keep the generated `MODULE.bazel.lock` out of Git and retain it with CI
+resolution artifacts. The Common flag
 enables its YANG C++ sources; this Common version generates the configuration
 schema from source inputs.
 

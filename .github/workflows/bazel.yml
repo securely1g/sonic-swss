@@ -96,7 +96,7 @@ jobs:
 
       - name: Check Bazel formatting
         run: >-
-          bazel run --lockfile_mode=off
+          bazel run --lockfile_mode=update
           --platforms=@sonic_build_infra//platforms:${{ matrix.platform }}
           //tools/bazel/buildifier:buildifier.check
 

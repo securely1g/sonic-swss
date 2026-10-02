@@ -40,7 +40,8 @@ jobs:
     container:
       image: debian:trixie-20260918@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c
       options: --init
-    timeout-minutes: 90
+    # Source-built protoc and Protobuf add to the full traced C++ build.
+    timeout-minutes: 120
     permissions:
       actions: read
       contents: read
