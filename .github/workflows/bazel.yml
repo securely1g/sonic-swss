@@ -50,6 +50,20 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Select the reviewed registry branch for CI
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          path = Path(".bazelrc")
+          prefix = "common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/"
+          lines = path.read_text().splitlines()
+          assert sum(line.startswith(prefix) for line in lines) == 1
+          path.write_text("\n".join(
+              prefix + "codex/common-rust-library" if line.startswith(prefix) else line
+              for line in lines
+          ) + "\n")
+          PYTHON
+
       - name: Configure Git for the container checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
@@ -95,26 +109,12 @@ jobs:
           disk-cache: swss-production-${{ matrix.architecture }}
           cache-version: "8.5.1"
 
-      - name: Prepare Rust metadata from the tracked Cargo lock
+      - name: Prepare the shared Rust dependency graph
         run: |
           python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json
           git ls-files --error-unmatch Cargo.lock
           git diff --exit-code -- Cargo.lock
-          test -z "$(git ls-files Cargo.Bazel.lock)"
-          git check-ignore Cargo.Bazel.lock
-          cp Cargo.lock Cargo.Bazel.lock MODULE.bazel.lock artifacts/rust/
-          python3 - <<'PYTHON'
-          import json
-          from pathlib import Path
-          import shutil
-          receipt = json.loads(Path("artifacts/rust/preparation.json").read_text())
-          for dependency in receipt["dependencies"]:
-              directory = Path("artifacts/rust/common")
-              directory.mkdir(parents=True, exist_ok=True)
-              workspace = Path(dependency["workspace"])
-              for name in ("Cargo.lock", "Cargo.Bazel.lock", "MODULE.bazel.lock", "preparation.json", "source-resolution.json"):
-                  shutil.copy2(workspace / name, directory / name)
-          PYTHON
+          python3 bazel/collect_rust_metadata.py --receipt artifacts/rust/preparation.json
 
       - name: Upload Rust preparation evidence
         if: always()

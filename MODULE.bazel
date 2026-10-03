@@ -37,13 +37,18 @@ bazel_dep(
     repo_name = "sonic_dash_api",
 )
 bazel_dep(
+    name = "sonic-rust-deps",
+    version = "0.0.1-c13b2a8a7b9250c3e5c0da0d5d9c35d40f084bcb",
+    repo_name = "sonic_rust_deps",
+)
+bazel_dep(
     name = "sonic-sairedis",
     version = "0.0.0-e9402b77ba43aee6323665921598ef67e66293f9",
     repo_name = "sonic_sairedis",
 )
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.1-9327531db3f95490301c95957f7dd132fa8563a3",
+    version = "0.0.1-296a84db4f0fa2dc6693d03f549ddc97e64281d0",
     repo_name = "sonic_swss_common",
 )
 
@@ -111,34 +116,3 @@ register_toolchains(
     "//tools/bazel/rust/dev:bindgen_toolchain",
     dev_dependency = True,
 )
-
-crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
-crate.from_cargo(
-    name = "swss_crates",
-    cargo_lockfile = "//:Cargo.lock",
-    # Generate before Bazel evaluation with tools/bazel/prepare_rust.py.
-    lockfile = "//:Cargo.Bazel.lock",
-    manifests = ["//:Cargo.toml"],
-    skip_cargo_lockfile_overwrite = True,
-    supported_platform_triples = [
-        "aarch64-unknown-linux-gnu",
-        "x86_64-unknown-linux-gnu",
-    ],
-)
-crate.annotation(
-    crate = "swss-common",
-    gen_build_script = "off",
-    override_target_lib = "@sonic_swss_common//crates/swss-common:swss_common",
-)
-
-# Common's public types implement Serde traits. All consumers must use the same
-# Serde targets so those implementations work across the module boundary.
-crate.annotation(
-    crate = "serde",
-    override_target_lib = "@sonic_swss_common//crates/swss-common:serde",
-)
-crate.annotation(
-    crate = "serde_core",
-    override_target_lib = "@sonic_swss_common//crates/swss-common:serde_core",
-)
-use_repo(crate, crates = "swss_crates")

@@ -1,9 +1,9 @@
 common --check_direct_dependencies=off
 common --noincompatible_disallow_empty_glob
 
-# Draft integration branch adds Common's source-owned Rust library.
-# Return to registry main after the Common registration lands.
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/codex/common-rust-library
+# Use a reviewed registry snapshot for local and external builds.
+# CI explicitly selects the current Common registration branch.
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/eda02cb768d6a1cc27c8efb5b17796180aefd535
 common --registry=https://bcr.bazel.build/
 
 # sonic-buildimage supplies checkout overrides when this repository is a submodule.
@@ -27,7 +27,7 @@ build:asan --//tools/bazel:asan=True
 build:gcov --//tools/bazel:gcov=True
 build:debug --compilation_mode=dbg
 
-# Preparation writes the resolved, writable Common module override here.
+# Preparation writes the shared Rust graph and Common module overrides here.
 try-import %workspace%/.bazelrc.rust
 
 # Keep local configuration outside source control.

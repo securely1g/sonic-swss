@@ -179,9 +179,12 @@ coverage.
 
 ## Generated Rust metadata
 
-Each native build and C++ CodeQL job prepares Common and SWSS before its first
-Bazel build. The `sonic-swss-rust-metadata-*` artifacts contain each module's
-tracked `Cargo.lock`, generated `Cargo.Bazel.lock`, and preparation receipt.
-The receipts bind selected versions and source/checksum pins to input hashes;
-preparation rejects changes to the tracked Cargo lock. Keep this bundle with
-the matching package or analysis run. See the [preparation guide](../tools/bazel/README.md#rust-and-runtimedebug-packages).
+Each native build and C++ CodeQL job prepares the shared `sonic-rust-deps`
+graph before its first Bazel build. The `sonic-swss-rust-metadata-*` artifacts
+contain that graph's tracked manifest and `Cargo.lock`, generated
+`Cargo.Bazel.lock`, the consumer Cargo inputs and preparation receipts.
+Preparation checks Common and SWSS against the same third-party dependency set.
+Native package artifacts also retain `rust-dependencies.json` and the full
+resolved target lists proving that Common and SWSS use one Serde library.
+Keep this evidence with the matching package or analysis run. See the
+[preparation guide](../tools/bazel/README.md#rust-and-runtimedebug-packages).

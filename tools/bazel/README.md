@@ -12,7 +12,7 @@ Trixie and execute on the same CPU they target. Linux x86-64 is the default;
 use `--config=aarch64` on a native ARM64 host.
 
 ```sh
-# Generate ignored Rust metadata and prepare the declared Common dependency.
+# Prepare the shared Rust graph and the declared Common dependency.
 python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json
 
 # Build all 29 production C++ programs.
@@ -126,27 +126,37 @@ normal-release CI contract does not validate DEBUG, ASAN or GCOV settings.
 generated bindings and native-library linkage. Its registry module and the Cargo
 dependency select the same Common source revision.
 
-SWSS redirects the Cargo `swss-common` dependency to that target. Serde and
-`serde_core` also use Common's exported targets so Common's public types work
-with SWSS's serializers. `//crates/countersyncd:common_rust_test` checks native
-string ownership and a JSON roundtrip across this boundary without Redis; both
-native package CI jobs run it.
+SWSS depends directly on Common's Rust target. Both libraries obtain third-party
+crates from `sonic-rust-deps`, a shared Bazel module maintained in
+`sonic-build-infra/rust/deps`. There is one generated crate graph: Common does
+not re-export `serde` or `serde_core`, and SWSS does not replace their targets.
+For example, SWSS's JSON serializer recognizes the Serde implementations on
+Common's string type because both use the same compiled Serde library.
+`//crates/countersyncd:common_rust_test` checks that JSON roundtrip and native
+string ownership without Redis. Both native package CI jobs also inspect the
+resolved graph for the real `countersyncd` program to reject duplicate Serde
+libraries or a consumer-owned replacement for Common's Rust target.
 
-[Cargo.lock](../../Cargo.lock) is the checked-in source dependency lock.
+The checked-in [Cargo.lock](../../Cargo.lock) remains the native Cargo build's
+source dependency lock. The shared module owns Bazel's third-party manifest and
+lock; its dependency versions and features must also satisfy Common and SWSS.
+To add a third-party crate, update the native Cargo inputs, the shared module's
+manifest and lock, then the explicit dependency list in
+[crates/countersyncd/BUILD.bazel](../../crates/countersyncd/BUILD.bazel).
+
 Run `python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json`
 before the first Bazel command and after changing Cargo or module inputs.
-The small launcher verifies a pinned helper from `sonic-build-infra`. It resolves
-Common from this module's declared dependency, prepares a private writable copy
-under `.cargo-bazel-prep`, and then generates SWSS's `Cargo.Bazel.lock` using the
-upstream `rules_rust` generator. `.bazelrc.rust` applies that Common override to
-subsequent commands. These generated files stay outside Git.
+The launcher verifies a pinned helper from `sonic-build-infra`. It resolves the
+shared module and Common, stages private copies under `.cargo-bazel-prep`, and
+generates `Cargo.Bazel.lock` only for the shared dependency graph. The generated
+`.bazelrc.rust` applies these overrides to subsequent commands. Generated files
+stay outside Git; SWSS and Common no longer generate their own crate graphs.
 
-Preparation fails if `Cargo.lock` changes or generated package versions, sources
-or checksums disagree with it. CI retains both modules' generated metadata and
-preparation receipts, including selected package pins and input hashes. Regenerate
-from tracked inputs even when restoring Bazel caches. External callers must
-prepare their writable Common and SWSS checkouts first, then supply the
-[Rust toolchain, overrides and root settings](../../bazel/external-module.md#rust-and-package-callers).
+Preparation checks consumer Cargo inputs against the shared graph and rejects
+incompatible versions or features. CI retains the shared metadata, consumer
+locks, preparation receipts and resolved Serde labels. Regenerate from tracked
+inputs even when restoring Bazel caches. External callers must apply the same
+[Rust toolchain, shared graph override and root settings](../../bazel/external-module.md#rust-and-package-callers).
 
 
 `//dist:swss_pkg` contains 29 C++ programs, `countersyncd`, two Python helpers,
@@ -170,10 +180,12 @@ for installed-file, debug-symbol and runtime checks and their limits.
 ## Dependency resolution and caching
 
 [MODULE.bazel](../../MODULE.bazel) pins module/source versions and hashes.
-[.bazelrc](../../.bazelrc) uses the draft SONiC registry branch
-`codex/common-rust-library`, followed by BCR. That branch adds Common's Rust
-library registration; return to `main` when it lands. Common's YANG C++ sources
-and generated schema remain enabled.
+[.bazelrc](../../.bazelrc) fixes a reviewed SONiC registry snapshot for local
+and external builds, followed by BCR. Native CI and C++ CodeQL explicitly use
+`codex/common-rust-library` as their single SONiC registry endpoint so they
+exercise the current registration proposal. Module versions and source hashes
+remain fixed in both cases. Common's YANG C++ sources and generated schema
+remain enabled.
 Keep the generated `MODULE.bazel.lock` out of Git; CI retains it with the
 resolved module graph. The [external module guide](../../bazel/external-module.md)
 explains the selected versions, required overrides and toolchain settings.
