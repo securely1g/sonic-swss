@@ -1,0 +1,321 @@
+name: Bazel
+
+on:
+  workflow_dispatch:
+    inputs:
+      clean:
+        description: Rebuild native outputs without action result cache reuse
+        type: boolean
+        default: false
+  pull_request:
+    branches: [master, bazel-bzlmod, codex/swss-ci-validation]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  production:
+    name: Bazel production (${{ matrix.arch }})
+    permissions:
+      contents: read
+      checks: write
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: AMD64
+            architecture: amd64
+            platform: x86_64_trixie
+            runner: ubuntu-24.04
+          - arch: ARM64
+            architecture: arm64
+            platform: aarch64_trixie
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: debian:trixie-20260918@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c
+    steps:
+      - name: Install host build tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            autoconf autoconf-archive automake autotools-dev binutils \
+            build-essential ca-certificates debhelper git libhiredis-dev \
+            libjansson-dev libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev \
+            libnl-route-3-dev libteam-dev libtool pkg-config python3 tar
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      - name: Configure Git for the container checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Run build contract unit tests
+        run: python3 -m unittest discover -s bazel/tests -v
+
+      - name: Configure the native production source selection
+        run: |
+          ./autogen.sh
+          debian/rules override_dh_auto_configure
+
+      - name: Record native production sources and build settings
+        run: >-
+          python3 bazel/generate.py
+          --source "$GITHUB_WORKSPACE"
+          --configured-build "$GITHUB_WORKSPACE"
+          --output-build-contract "$RUNNER_TEMP/native-build-contract.json"
+          --git-revision "$(git rev-parse HEAD)"
+
+      # A Bazel-Clean: true trailer on the PR head commit also selects a clean
+      # build while this workflow is not yet available on the default branch.
+      - name: Select native build cache mode
+        id: build_mode
+        shell: bash
+        env:
+          CLEAN_INPUT: ${{ inputs.clean || false }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          commit_trailers="$(git show -s --format=%B "$CI_HEAD_SHA" | git interpret-trailers --parse)"
+          build_mode=normal
+          if [[ "$CLEAN_INPUT" == "true" ]] || grep -Eq '^Bazel-Clean:[[:space:]]*true[[:space:]]*$' <<< "$commit_trailers"; then
+            build_mode=clean
+          fi
+          printf 'mode=%s\n' "$build_mode" >> "$GITHUB_OUTPUT"
+          printf 'Native build mode: %s (head %s)\n' "$build_mode" "$CI_HEAD_SHA"
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazelisk-version: 1.29.0
+          bazelisk-cache: true
+          repository-cache: true
+          disk-cache: swss-production-${{ matrix.architecture }}
+          cache-version: "8.5.1"
+
+      - name: Build the source PR without companion CI helpers
+        id: source_pr_build
+        if: github.event_name == 'pull_request' && github.base_ref == 'bazel-bzlmod'
+        shell: bash
+        env:
+          SOURCE_REVISION: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ARCHITECTURE: ${{ matrix.architecture }}
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          BUILD_MODE: ${{ steps.build_mode.outputs.mode }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CI_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          export CI_CHECKOUT_SHA="$(git rev-parse HEAD)"
+          export CI_CHECKOUT_TREE="$(git rev-parse HEAD^{tree})"
+          export SOURCE_CHECKOUT="$RUNNER_TEMP/swss-source-pr"
+          export SOURCE_ARTIFACTS="$RUNNER_TEMP/swss-source-pr-artifacts"
+          git fetch --no-tags --depth=1 origin "$SOURCE_REVISION"
+          git worktree add --detach "$SOURCE_CHECKOUT" "$SOURCE_REVISION"
+          cd "$SOURCE_CHECKOUT"
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_REVISION" ]]
+          [[ "$(dpkg --print-architecture)" == "$ARCHITECTURE" ]]
+          case "$ARCHITECTURE:$(uname -m)" in
+            amd64:x86_64|arm64:aarch64) ;;
+            *) echo 'Source PR build requires a native runner' >&2; exit 1 ;;
+          esac
+          mkdir -p "$SOURCE_ARTIFACTS"
+          bazel_command=(bazel "--output_base=$RUNNER_TEMP/swss-source-pr-bazel" --batch)
+          options=(--config=release --lockfile_mode=update
+            "--platforms=@sonic_build_infra//platforms:$TARGET_PLATFORM"
+            --jobs=4 --noshow_progress --color=no --curses=no)
+          if [[ "$BUILD_MODE" == clean ]]; then
+            options+=(--nouse_action_cache --noremote_accept_cached
+              --noremote_upload_local_results --disk_cache= --remote_cache=
+              --remote_executor= --spawn_strategy=processwrapper-sandbox)
+          fi
+          "${bazel_command[@]}" build "${options[@]}" //dist:cpp_binaries
+          "${bazel_command[@]}" cquery "${options[@]}" \
+            '//dist:cpp_binaries union labels(srcs, //dist:cpp_binaries)' \
+            --universe_scope=//dist:cpp_binaries --noimplicit_deps --notool_deps \
+            --consistent_labels --output=jsonproto > "$SOURCE_ARTIFACTS/production-cquery.json"
+          "${bazel_command[@]}" cquery "${options[@]}" \
+            //dist:cpp_binaries --output=files > "$SOURCE_ARTIFACTS/output-files.txt"
+          git diff --exit-code
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import platform
+          import shutil
+          import subprocess
+
+          artifacts = Path(os.environ["SOURCE_ARTIFACTS"])
+          programs = artifacts / "programs"
+          programs.mkdir()
+          outputs = (artifacts / "output-files.txt").read_text().splitlines()
+          if not outputs or len({Path(name).name for name in outputs}) != len(outputs):
+              raise ValueError("expected nonempty, uniquely named production outputs")
+          for name in outputs:
+              shutil.copy2(name, programs / Path(name).name)
+          shutil.copy2("MODULE.bazel.lock", artifacts / "MODULE.bazel.lock")
+          manifest = {
+              "schema_version": 1,
+              "artifact_type": "source_pr_build_only",
+              "source_revision": os.environ["SOURCE_REVISION"],
+              "source_tree": subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], text=True).strip(),
+              "ci_head_revision": os.environ["CI_HEAD_SHA"],
+              "ci_checkout_revision": os.environ["CI_CHECKOUT_SHA"],
+              "ci_checkout_tree": os.environ["CI_CHECKOUT_TREE"],
+              "architecture": os.environ["ARCHITECTURE"],
+              "execution_machine": platform.machine(),
+              "target_platform": "@sonic_build_infra//platforms:" + os.environ["TARGET_PLATFORM"],
+              "target": "//dist:cpp_binaries",
+              "configuration": "release",
+              "build_mode": os.environ["BUILD_MODE"],
+              "bazel_version": Path(".bazelversion").read_text().strip(),
+              "files": {str(path.relative_to(artifacts)): hashlib.sha256(path.read_bytes()).hexdigest()
+                        for path in sorted(artifacts.rglob("*")) if path.is_file()},
+          }
+          (artifacts / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+
+      - name: Upload the source PR build outputs
+        id: source_pr_artifact
+        if: github.event_name == 'pull_request' && github.base_ref == 'bazel-bzlmod'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sonic-swss-source-pr-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/swss-source-pr-artifacts/
+          if-no-files-found: error
+
+      - name: Check Bazel formatting
+        run: >-
+          bazel run --lockfile_mode=update
+          --platforms=@sonic_build_infra//platforms:${{ matrix.platform }}
+          //tools/bazel/buildifier:buildifier.check
+
+      - name: Build and inspect production C++ programs
+        run: >-
+          python3 bazel/ci_production.py build
+          --architecture ${{ matrix.architecture }}
+          --native-contract "$RUNNER_TEMP/native-build-contract.json"
+          --artifact-directory artifacts/production
+          --mode ${{ steps.build_mode.outputs.mode }}
+
+      - name: Upload C++ build outputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sonic-swss-cpp-${{ matrix.architecture }}
+          path: artifacts/production/
+          if-no-files-found: error
+
+      - name: Report the source PR build check
+        if: >-
+          always() && github.event_name == 'pull_request' &&
+          github.base_ref == 'bazel-bzlmod' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CHECK_NAME: Bazel production (${{ matrix.arch }})
+          ARCHITECTURE: ${{ matrix.architecture }}
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          SOURCE_BUILD_OUTCOME: ${{ steps.source_pr_build.outcome }}
+          SOURCE_ARTIFACT_OUTCOME: ${{ steps.source_pr_artifact.outcome }}
+          SOURCE_ARTIFACT_URL: ${{ steps.source_pr_artifact.outputs.artifact-url }}
+          VALIDATION_STATUS: ${{ job.status }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import urllib.error
+          import urllib.request
+
+          source_sha = os.environ["SOURCE_PR_BASE_SHA"]
+          if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
+              raise ValueError("source PR base revision must be a full commit SHA")
+          run_url = (f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}"
+                     f"/actions/runs/{os.environ['GITHUB_RUN_ID']}")
+          conclusion = "cancelled" if os.environ["VALIDATION_STATUS"] == "cancelled" else "failure"
+          summary = [
+              f"Source PR revision: `{source_sha}`.",
+              f"Scope: native {os.environ['ARCHITECTURE']} release build of `//dist:cpp_binaries` "
+              "from the source PR checkout without companion CI helpers.",
+              f"Source build: {os.environ['SOURCE_BUILD_OUTCOME'] or 'not run'}; "
+              f"source artifact upload: {os.environ['SOURCE_ARTIFACT_OUTCOME'] or 'not run'}; "
+              f"companion validation: {os.environ['VALIDATION_STATUS']}.",
+              f"[Companion workflow run]({run_url}).",
+          ]
+          if (os.environ["VALIDATION_STATUS"] == "success"
+                  and os.environ["SOURCE_BUILD_OUTCOME"] == "success"
+                  and os.environ["SOURCE_ARTIFACT_OUTCOME"] == "success"):
+              try:
+                  artifacts = Path(os.environ["RUNNER_TEMP"]) / "swss-source-pr-artifacts"
+                  source = Path(os.environ["RUNNER_TEMP"]) / "swss-source-pr"
+                  receipt = json.loads((artifacts / "manifest.json").read_text())
+                  source_tree = subprocess.check_output(
+                      ["git", "rev-parse", "HEAD^{tree}"], cwd=source, text=True).strip()
+                  source_head = subprocess.check_output(
+                      ["git", "rev-parse", "HEAD"], cwd=source, text=True).strip()
+                  ci_tree = subprocess.check_output(
+                      ["git", "rev-parse", "HEAD^{tree}"], text=True).strip()
+                  expected = {
+                      "schema_version": 1, "artifact_type": "source_pr_build_only",
+                      "source_revision": source_sha, "source_tree": source_tree,
+                      "ci_head_revision": os.environ["CI_HEAD_SHA"],
+                      "ci_checkout_revision": os.environ["GITHUB_SHA"],
+                      "ci_checkout_tree": ci_tree,
+                      "architecture": os.environ["ARCHITECTURE"],
+                      "target_platform": "@sonic_build_infra//platforms:" + os.environ["TARGET_PLATFORM"],
+                      "target": "//dist:cpp_binaries", "configuration": "release",
+                  }
+                  if source_head != source_sha or any(receipt.get(k) != v for k, v in expected.items()):
+                      raise ValueError("source build receipt does not match the tested revisions and configuration")
+                  files = receipt["files"]
+                  required = {"MODULE.bazel.lock", "production-cquery.json", "output-files.txt"}
+                  if not required <= files.keys() or not any(name.startswith("programs/") for name in files):
+                      raise ValueError("source build receipt is missing required evidence")
+                  for name, digest in files.items():
+                      path = (artifacts / name).resolve()
+                      if not path.is_relative_to(artifacts.resolve()) or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+                          raise ValueError("source build evidence hash or path does not match the receipt")
+                  artifact_url = os.environ["SOURCE_ARTIFACT_URL"]
+                  if not artifact_url:
+                      raise ValueError("source build artifact URL is missing")
+                  summary.append(f"Verified source tree `{source_tree}` and [retained evidence]({artifact_url}).")
+                  conclusion = "success"
+              except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
+                  summary.append(f"Source build evidence validation failed: {error}")
+          payload = {
+              "name": os.environ["CHECK_NAME"], "head_sha": source_sha,
+              "status": "completed", "conclusion": conclusion, "details_url": run_url,
+              "output": {"title": "Source PR native build: " + conclusion, "summary": "\n\n".join(summary)},
+          }
+          request = urllib.request.Request(
+              f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GITHUB_REPOSITORY']}/check-runs",
+              data=json.dumps(payload).encode(), method="POST",
+              headers={"Authorization": "Bearer " + os.environ["GITHUB_TOKEN"],
+                       "Accept": "application/vnd.github+json", "Content-Type": "application/json",
+                       "X-GitHub-Api-Version": "2022-11-28"},
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  check = json.load(response)
+          except urllib.error.HTTPError as error:
+              raise SystemExit(f"GitHub check publication failed: HTTP {error.code}; "
+                               "verify the same-repository workflow token has checks: write permission") from None
+          if (check.get("head_sha") != source_sha or check.get("name") != payload["name"]
+                  or check.get("conclusion") != conclusion or check.get("app", {}).get("id") != 15368):
+              raise ValueError("published check does not match the source revision, result, or GitHub Actions app")
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as stream:
+              stream.write("\n\n".join(summary) + f"\n\nPublished {payload['name']}: **{conclusion}**.\n")
+          print(f"Published {payload['name']} for {source_sha}: {conclusion}")
+          if conclusion != "success":
+              raise SystemExit(1)
+          PY

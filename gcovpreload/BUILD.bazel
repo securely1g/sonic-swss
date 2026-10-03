@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import", "cc_library", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -29,4 +29,11 @@ cc_library(
         "-Wl,--pop-state",
     ],
     deps = [":_gcovpreload_import"],
+)
+
+cc_test(
+    name = "gcovpreload_test",
+    size = "small",
+    srcs = ["gcovpreload_test.cpp"],
+    deps = [":gcovpreload_shared"],
 )
