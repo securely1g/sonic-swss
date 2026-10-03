@@ -43,7 +43,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.1-a349bf0bb46952156651998a4c1e78ecf8c6cbaa",
+    version = "0.0.1-4150597fee0c644334613a5b2a8ef73fc7cb3d76",
     repo_name = "sonic_swss_common",
 )
 
