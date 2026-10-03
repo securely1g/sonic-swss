@@ -17,6 +17,7 @@ To reproduce native CI, first [configure Automake and record its build contract]
 in a native Debian Trixie environment. Then run from the repository root:
 
 ```sh
+python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json
 python3 bazel/ci_production.py build \
   --architecture amd64 \
   --native-contract /absolute/path/to/native-build-contract.json \
@@ -56,8 +57,62 @@ source archives and checksums remain pinned.
 
 The comparison does not inspect toolchain actions, response files, transitive
 provider paths, external header precedence, native link ordering or runtime
-equivalence. DEBUG, ASAN, GCOV, Rust, Cargo and runtime targets remain separate
-validation scope.
+equivalence. DEBUG, ASAN, GCOV, Rust and Cargo settings remain outside the
+native C++ comparison. Package and runtime checks are described below.
+
+## Runtime and debug package validation
+
+Bazel and CodeQL also run for pull requests targeting the stacked
+`bazel-bzlmod` branch. Each native AMD64/ARM64 production job builds the runtime
+and detached-symbol targets and checks all 65 installed files and 30 ELF/debug
+pairs, including C++ and Rust source lookup with GDB. Package validation is part
+of the required production check, so a failed package build or inspection fails
+that check. The GCOV preload runtime test stays in the same job, and CodeQL
+retains its selected C++ and Python coverage.
+
+Before packaging, `//crates/countersyncd:common_rust_test` checks the Common-owned
+Rust library through SWSS's dependency graph. It creates and clones a native
+string, drops the original and roundtrips the surviving value through SWSS's
+JSON serializer. This verifies native linkage and shared Serde traits without
+starting Redis. The package artifacts retain its test log and result.
+
+To build, validate and retain the same package evidence locally, configure
+Automake and [record the native contract](native-build-contract.md#configure-the-native-source-inventory)
+first, then prepare Rust metadata and run in native Debian Trixie:
+
+```sh
+python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json
+python3 bazel/ci_runtime_package.py \
+  --architecture amd64 \
+  --native-contract /absolute/path/to/native-build-contract.json \
+  --artifact-directory /absolute/path/to/empty-package-output-directory
+```
+
+Use `--architecture arm64` on a native ARM64 host. To inspect already-built
+tars for installed paths, data bytes, ownership, permissions, ELF architecture,
+build IDs, debug-link checksums and GDB source-line lookup, run:
+
+```sh
+python3 bazel/verify_runtime_package.py --architecture amd64 \
+  --native-contract /absolute/path/to/native-build-contract.json \
+  --runtime bazel-bin/dist/swss_pkg_rttar.tar \
+  --debug bazel-bin/dist/swss_pkg.debug_symbols.tar
+```
+
+Use `bazel cquery --config=release //dist:swss_pkg --output=files` (and the
+`.debug_symbols` target) for exact paths when the output layout differs. The
+verifier requires a contract from the same checkout revision and native
+architecture. It compares every installed path, mode and data file with the
+native inventory and `debian/swss.install`; editing a BUILD list cannot change
+the expected results.
+
+The `sonic-swss-packages-amd64` and `sonic-swss-packages-arm64` artifacts contain
+the runtime tar, matching symbols, native contract, validation report, resolved
+module graph, generated lockfile, build log and dependency runtime evidence.
+Their manifest records the tested revision, native architecture, target
+platform and file hashes. The native contract's SHA-256 and source revision are
+bound into both the manifest and validation report. These source-owned tars do
+not establish full daemon runtime or installed-image behavior.
 
 ## Source Protobuf runtime validation
 
@@ -77,6 +132,12 @@ For this temporary stage, `--inhibit-rpath ""` and `--library-path` select the
 staged libraries, and exact path checks reject fallback to another Protobuf or
 DASH library. The native test also executes DASH serialization against these
 packaged libraries.
+
+Package CI repeats these checks on `usr/bin/orchagent` extracted from the SWSS
+runtime tar. It stages DASH and Protobuf archives separately, executes the DASH
+serialization probe and verifies the dependencies' matching debug pairs. The
+package report records this as `protobuf_runtime`; retained dependency artifacts
+live under `dependencies/`. SWSS's installed payload stays unchanged.
 
 This does not check complete orchagent relocation, default installed-system
 library search paths or Redis/SAI daemon behavior. Package and RPATH checks
@@ -113,3 +174,17 @@ coverage.
 | [compare_build_contract.py](compare_build_contract.py) | Compares the retained native contract and configured Bazel rules. |
 | [ci_production.py](ci_production.py) | Builds, inspects and records production outputs and their validation receipts. |
 | [verify_protobuf_runtime.py](verify_protobuf_runtime.py) | Checks staged DASH and Protobuf runtime libraries. |
+| [verify_runtime_package.py](verify_runtime_package.py) | Validates installed SWSS files and matching C++/Rust debug symbols against the native contract. |
+| [ci_runtime_package.py](ci_runtime_package.py) | Builds and validates runtime/debug archives, including installed-orchagent Protobuf checks, and records package evidence. |
+
+## Generated Rust metadata
+
+Each native build and C++ CodeQL job prepares the shared `sonic-rust-deps`
+graph before its first Bazel build. The `sonic-swss-rust-metadata-*` artifacts
+contain that graph's tracked manifest and `Cargo.lock`, generated
+`Cargo.Bazel.lock`, the consumer Cargo inputs and preparation receipts.
+Preparation checks Common and SWSS against the same third-party dependency set.
+Native package artifacts also retain `rust-dependencies.json` and the full
+resolved target lists proving that Common and SWSS use one Serde library.
+Keep this evidence with the matching package or analysis run. See the
+[preparation guide](../tools/bazel/README.md#rust-and-runtimedebug-packages).

@@ -12,6 +12,9 @@ Trixie and execute on the same CPU they target. Linux x86-64 is the default;
 use `--config=aarch64` on a native ARM64 host.
 
 ```sh
+# Prepare the shared Rust graph and the declared Common dependency.
+python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json
+
 # Build all 29 production C++ programs.
 bazel build --config=release //dist:cpp_binaries
 
@@ -21,8 +24,14 @@ bazel build --config=release //orchagent:orchagent
 # Build all C++ programs on an ARM64 host.
 bazel build --config=release --config=aarch64 //dist:cpp_binaries
 
-# Print a built program's output path.
-bazel cquery --config=release //orchagent:orchagent --output=files
+# Build the Rust program.
+bazel build --config=release //crates/countersyncd:countersyncd
+
+# Build the runtime tar and its matching detached debug symbols.
+bazel build --config=release //dist:swss_pkg //dist:swss_pkg.debug_symbols
+
+# Print an artifact's output path using the same build configuration.
+bazel cquery --config=release //dist:swss_pkg --output=files
 ```
 
 Building SWSS from another workspace needs root-module toolchain registration
@@ -110,27 +119,73 @@ library retains its startup constructor with `--as-needed`. These flags do not
 instrument Rust, matching the native build's separate Cargo invocation. The
 normal-release CI contract does not validate DEBUG, ASAN or GCOV settings.
 
-## Rust and runtime tar drafts
+## Rust and runtime/debug packages
 
-These targets remain separate draft migration scope:
+`//crates/countersyncd:countersyncd` uses `rules_rust` and the public Rust library
+`@sonic_swss_common//crates/swss-common:swss_common`. Common owns the Rust source,
+generated bindings and native-library linkage. Its registry module and the Cargo
+dependency select the same Common source revision.
 
-```sh
-bazel build --config=release //crates/countersyncd:countersyncd
-bazel build --config=release //dist:swss_pkg
-```
+SWSS depends directly on Common's Rust target. Both libraries obtain third-party
+crates from `sonic-rust-deps`, a shared Bazel module maintained in
+`sonic-build-infra/rust/deps`. There is one generated crate graph: Common does
+not re-export `serde` or `serde_core`, and SWSS does not replace their targets.
+For example, SWSS's JSON serializer recognizes the Serde implementations on
+Common's string type because both use the same compiled Serde library.
+`//crates/countersyncd:common_rust_test` checks that JSON roundtrip and native
+string ownership without Redis. Both native package CI jobs also inspect the
+resolved graph for the real `countersyncd` program to reject duplicate Serde
+libraries or a consumer-owned replacement for Common's Rust target.
 
-`countersyncd` uses `rules_rust`, bindgen and Clang. `//dist:swss_pkg` (also
-available as `//:swss_pkg`) contains the 29 C++ programs, `countersyncd`, two
-Python helpers, 32 Lua files and `netbouncer.json`, installed at the paths from
-Automake and `debian/swss.install`. It has no Debian control metadata,
-maintainer scripts or dependency declarations. The consuming image must supply
-the matching shared libraries; the tar contains only the SWSS payload.
+The checked-in [Cargo.lock](../../Cargo.lock) remains the native Cargo build's
+source dependency lock. The shared module owns Bazel's third-party manifest and
+lock; its dependency versions and features must also satisfy Common and SWSS.
+To add a third-party crate, update the native Cargo inputs, the shared module's
+manifest and lock, then the explicit dependency list in
+[crates/countersyncd/BUILD.bazel](../../crates/countersyncd/BUILD.bazel).
+
+Run `python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json`
+before the first Bazel command and after changing Cargo or module inputs.
+The launcher verifies a pinned helper from `sonic-build-infra`. It resolves the
+shared module and Common, stages private copies under `.cargo-bazel-prep`, and
+generates `Cargo.Bazel.lock` only for the shared dependency graph. The generated
+`.bazelrc.rust` applies these overrides to subsequent commands. Generated files
+stay outside Git; SWSS and Common no longer generate their own crate graphs.
+
+Preparation checks consumer Cargo inputs against the shared graph and rejects
+incompatible versions or features. CI retains the shared metadata, consumer
+locks, preparation receipts and resolved Serde labels. Regenerate from tracked
+inputs even when restoring Bazel caches. External callers must apply the same
+[Rust toolchain, shared graph override and root settings](../../bazel/external-module.md#rust-and-package-callers).
+
+
+`//dist:swss_pkg` contains 29 C++ programs, `countersyncd`, two Python helpers,
+32 Lua files and `netbouncer.json`, at the paths from Automake and
+`debian/swss.install`. [dist/BUILD.bazel](../../dist/BUILD.bazel) declares the
+program and data lists, including the three VS Lua names that install Mellanox
+implementations. Keep these lists in sync when adding installed files.
+
+`//dist:swss_pkg.debug_symbols` contains matching detached symbols under
+`usr/lib/debug/.build-id`. Both tars are split from the same linked ELFs. The
+shared rule retains C++ debug information without changing optimization mode;
+Rust targets retain source-line information explicitly. Root aliases
+`//:swss_pkg` and `//:swss_pkg.debug_symbols` select the same outputs. The runtime
+target carries `DebugSymbolsInfo` so consuming OCI images can collect symbols.
+
+The tar has no Debian control metadata, maintainer scripts or dependency
+declarations. It contains the SWSS payload; the consuming image must provide
+matching shared libraries. See the [package validation guide](../../bazel/README.md#runtime-and-debug-package-validation)
+for installed-file, debug-symbol and runtime checks and their limits.
 
 ## Dependency resolution and caching
 
 [MODULE.bazel](../../MODULE.bazel) pins module/source versions and hashes.
-[.bazelrc](../../.bazelrc) uses the SONiC registry's maintained `main` endpoint
-followed by BCR, and enables Common's YANG C++ sources and generated schema.
+[.bazelrc](../../.bazelrc) fixes a reviewed SONiC registry snapshot for local
+and external builds, followed by BCR. Native CI and C++ CodeQL explicitly use
+`codex/common-rust-library` as their single SONiC registry endpoint so they
+exercise the current registration proposal. Module versions and source hashes
+remain fixed in both cases. Common's YANG C++ sources and generated schema
+remain enabled.
 Keep the generated `MODULE.bazel.lock` out of Git; CI retains it with the
 resolved module graph. The [external module guide](../../bazel/external-module.md)
 explains the selected versions, required overrides and toolchain settings.

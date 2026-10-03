@@ -23,7 +23,9 @@ bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_bindgen", version = "0.74.0")
 bazel_dep(name = "sai", version = "1.18.0-sonic.1")
 bazel_dep(name = "tar.bzl", version = "0.10.5")
-bazel_dep(name = "toolchains_llvm", version = "1.5.0")
+
+bazel_dep(name = "toolchains_llvm", version = "1.5.0", dev_dependency = True)
+
 bazel_dep(
     name = "sonic-build-infra",
     version = "0.0.14-f9876051703da05af745ffc781706e29fed7dd4b",
@@ -35,13 +37,18 @@ bazel_dep(
     repo_name = "sonic_dash_api",
 )
 bazel_dep(
+    name = "sonic-rust-deps",
+    version = "0.0.1-c13b2a8a7b9250c3e5c0da0d5d9c35d40f084bcb",
+    repo_name = "sonic_rust_deps",
+)
+bazel_dep(
     name = "sonic-sairedis",
     version = "0.0.0-e9402b77ba43aee6323665921598ef67e66293f9",
     repo_name = "sonic_sairedis",
 )
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.0-5ee19a9375e667c0d507239927745de8fa29be07",
+    version = "0.0.1-a23afe60bbcbb05fe3cf8d6db9b7c9aaad28652d",
     repo_name = "sonic_swss_common",
 )
 
@@ -99,35 +106,13 @@ use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")
 
-llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
+# Bindgen toolchain selection belongs to the consuming root. This LLVM
+# selection is for standalone builds only.
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)
 llvm.toolchain(llvm_version = "17.0.6")
 use_repo(llvm, "llvm_toolchain_llvm")
 
-register_toolchains("//tools/bazel:bindgen_toolchain")
-
-crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
-crate.from_cargo(
-    name = "crates",
-    cargo_lockfile = "//:Cargo.lock",
-    manifests = ["//:Cargo.toml"],
-    skip_cargo_lockfile_overwrite = True,
-    supported_platform_triples = [
-        "aarch64-unknown-linux-gnu",
-        "x86_64-unknown-linux-gnu",
-    ],
+register_toolchains(
+    "//tools/bazel/rust/dev:bindgen_toolchain",
+    dev_dependency = True,
 )
-crate.annotation(
-    compile_data = ["@sonic_swss//tools/bazel/rust:swss_common_bindings_dir"],
-    crate = "swss-common",
-    gen_build_script = "off",
-    label_injections = {
-        "//tools/bazel/rust:swss_common_bindings_dir": "@sonic_swss",
-        "@sonic_swss_common//:libswsscommon_shared": "@sonic_swss_common",
-    },
-    rustc_env = {
-        "OUT_DIR": "$(execpath @sonic_swss//tools/bazel/rust:swss_common_bindings_dir)",
-    },
-    version = "0.1.0",
-    deps = ["@sonic_swss_common//:libswsscommon_shared"],
-)
-use_repo(crate, "crates")

@@ -466,6 +466,7 @@ dependencies = [
  "reqwest-middleware 0.3.3",
  "reqwest-tracing",
  "serde",
+ "serde_json",
  "serde_yaml",
  "serial_test",
  "swss-common",
@@ -2242,7 +2243,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 [[package]]
 name = "swss-common"
 version = "0.1.0"
-source = "git+https://github.com/sonic-net/sonic-swss-common.git?branch=master#16a8a937f6726bfa2309fc4b78b1c7e1d86594dd"
+source = "git+https://github.com/securely1g/sonic-swss-common.git?rev=a23afe60bbcbb05fe3cf8d6db9b7c9aaad28652d#a23afe60bbcbb05fe3cf8d6db9b7c9aaad28652d"
 dependencies = [
  "bindgen",
  "getset",

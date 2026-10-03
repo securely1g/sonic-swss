@@ -1,6 +1,7 @@
 load("@buildifier_prebuilt//:rules.bzl", "buildifier")
 
 EXCLUDE_PATTERNS = [
+    "./.cargo-bazel-prep/*",
     "./.git/*",
     "./bazel-*/*",
     "./target/*",

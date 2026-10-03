@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - 'master'
+      - 'bazel-bzlmod'
       - '202[0-9][0-9][0-9]'
   workflow_dispatch:
 
@@ -56,6 +57,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Select the reviewed registry branch for CI
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          path = Path(".bazelrc")
+          prefix = "common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/"
+          lines = path.read_text().splitlines()
+          assert sum(line.startswith(prefix) for line in lines) == 1
+          path.write_text("\n".join(
+              prefix + "codex/common-rust-library" if line.startswith(prefix) else line
+              for line in lines
+          ) + "\n")
+          PYTHON
+
       - name: Configure Git for the container checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
@@ -83,6 +98,21 @@ jobs:
           bazelisk-cache: true
           repository-cache: true
           cache-version: "8.5.1"
+
+      - name: Prepare the shared Rust dependency graph
+        run: |
+          python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json
+          git ls-files --error-unmatch Cargo.lock
+          git diff --exit-code -- Cargo.lock
+          python3 bazel/collect_rust_metadata.py --receipt artifacts/rust/preparation.json
+
+      - name: Upload Rust preparation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sonic-swss-rust-metadata-codeql
+          path: artifacts/rust/
+          if-no-files-found: error
 
       - name: Build production programs and selected C++ coverage targets
         run: >-
