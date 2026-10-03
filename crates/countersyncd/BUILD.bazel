@@ -1,0 +1,47 @@
+load("@crates//:defs.bzl", "aliases", "all_crate_deps", "crate_edition")
+load("@rules_rust//cargo:defs.bzl", "cargo_toml_env_vars")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cargo_toml_env_vars(
+    name = "cargo_env",
+    src = "Cargo.toml",
+    workspace = "//:Cargo.toml",
+)
+
+rust_library(
+    name = "countersyncd_lib",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/main.rs"],
+    ),
+    aliases = aliases(),
+    crate_name = "countersyncd",
+    crate_root = "src/lib.rs",
+    edition = crate_edition(),
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    rustc_env_files = [":cargo_env"],
+    rustc_flags = ["-Dwarnings"],
+    version = "0.1.0",
+    deps = all_crate_deps(normal = True),
+)
+
+rust_binary(
+    name = "countersyncd",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/lib.rs"],
+    ),
+    aliases = aliases(),
+    crate_name = "countersyncd",
+    crate_root = "src/main.rs",
+    edition = crate_edition(),
+    # Preserve the interface-library paths supplied by rules_distroless.
+    experimental_use_cc_common_link = 1,
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    rustc_env_files = [":cargo_env"],
+    rustc_flags = ["-Dwarnings"],
+    version = "0.1.0",
+    deps = [":countersyncd_lib"] + all_crate_deps(normal = True),
+)
