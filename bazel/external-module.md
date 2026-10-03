@@ -17,7 +17,7 @@ bazel_dep(name = "rules_cc", version = "0.2.16")
 bazel_dep(name = "sonic-swss", version = "0.0.0", repo_name = "sonic_swss")
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.1-9327531db3f95490301c95957f7dd132fa8563a3",
+    version = "0.0.1-a23afe60bbcbb05fe3cf8d6db9b7c9aaad28652d",
     repo_name = "sonic_swss_common",
 )
 bazel_dep(
@@ -50,7 +50,7 @@ register_toolchains("@gcc_toolchains//:all")
 Register GCC in the root caller so the managed toolchain takes priority over
 `local_config_cc`. The local SWSS override points to the source tree containing
 the component BUILD files. Declare Common directly so the caller can enable its
-YANG C++ sources. Common revision `9327531db3f95490301c95957f7dd132fa8563a3`
+YANG C++ sources. Common revision `a23afe60bbcbb05fe3cf8d6db9b7c9aaad28652d`
 generates the configuration schema from its source inputs. The RE2 override
 selects the BCR metadata repair for its obsolete local C++ extension and retains
 the same upstream source archive.
@@ -62,7 +62,7 @@ Put `8.5.1` in the caller's `.bazelversion` and add these settings to its
 
 ```text
 common --check_direct_dependencies=off
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/codex/common-rust-library
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/2cf4b40f717ad09b061695400c2b29c72942ebec
 common --registry=https://bcr.bazel.build/
 common --lockfile_mode=update
 common --noincompatible_disallow_empty_glob
@@ -72,17 +72,18 @@ common --@sonic_swss_common//tools/bazel:yang_modules=True
 build:release --compilation_mode=opt
 ```
 
-Use the same single SONiC registry branch as SWSS `.bazelrc`, followed by BCR.
-The draft `codex/common-rust-library` branch adds the Common Rust-library
-registration in [registry #32](https://github.com/securely1g/sonic-bazel-registry/pull/32).
+Use the same single immutable SONiC registry snapshot as SWSS `.bazelrc`,
+followed by BCR. Native CI and C++ CodeQL explicitly select the
+`codex/common-rust-library` branch to test the current registration proposed in
+[registry #32](https://github.com/securely1g/sonic-bazel-registry/pull/32).
 It includes the existing build-infra,
 libnl3, Distroless, DASH, SAI, sairedis and Protobuf entries. Common source comes
 from [Common #17](https://github.com/securely1g/sonic-swss-common/pull/17).
-Return to registry `main` after the new registration lands. The DASH entry landed through
+Refresh the snapshot after the new registration lands. The DASH entry landed through
 [registry #19](https://github.com/securely1g/sonic-bazel-registry/pull/19).
 DASH version `0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069` selects the
 landed source commit on its maintained `master` branch. CI and local commands
-share this endpoint. Module versions, source archives/checksums, overlays and
+use the same module versions. Source archives/checksums, overlays and
 toolchain inputs remain pinned. The root libnl3 and Distroless overrides prevent
 higher-sorting dependency requests from replacing the selected SONiC fixes.
 Distroless `0.9.4-sonic.1` retains include fragments for shared infrastructure
@@ -123,9 +124,9 @@ bazel build --config=release @sonic_swss//orchagent:orchagent
 SWSS consumes Common's public Rust library target
 `@sonic_swss_common//crates/swss-common:swss_common`. Common owns its bindings
 and native-library linkage. SWSS's Cargo dependency and Bazel module select the
-same Common source revision. Its crate annotations reuse Common's Serde and
-`serde_core` targets, preserving the trait implementations of Common's public
-types when they are passed to SWSS serializers.
+same Common source revision. Both use the third-party targets from
+`sonic-rust-deps`, so Common's public types and SWSS serializers use the same
+Serde library without component aliases or Cargo-to-Bazel replacements.
 
 Building `countersyncd` or the SWSS runtime package also needs a bindgen toolchain
 registered by the consuming root. Standalone SWSS selects LLVM 17.0.6 and
@@ -143,27 +144,29 @@ repository name is available, and add this to the caller's `.bazelrc`:
 build --@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=True
 ```
 
-The standalone SWSS `.bazelrc` already sets this option. `Cargo.lock` remains
-tracked; `Cargo.Bazel.lock` is generated before Bazel evaluates a dependency's
-crate extension. `rules_rust` 0.74.0 requires that generated file for non-root
-modules, so a normal build action cannot generate it in time.
+The standalone SWSS `.bazelrc` already sets this option. Native Cargo locks
+remain tracked in each component. Bazel uses one third-party graph owned by
+`sonic-rust-deps`; only that shared module needs a generated `Cargo.Bazel.lock`.
+`rules_rust` 0.74.0 requires it before evaluating a non-root module, so preparation
+stages a writable copy rather than modifying a read-only repository cache.
 
-Prepare writable checkouts in dependency order before invoking the caller:
+For an image build that already has verified Common and SWSS checkouts, prepare
+SWSS with its Common checkout:
 
 ```sh
-python3 /inputs/sonic-swss-common/tools/bazel/prepare_rust.py \
-  --receipt /artifacts/rust/common/preparation.json
 python3 /inputs/sonic-swss/tools/bazel/prepare_rust.py \
   --prepared-common /inputs/sonic-swss-common \
   --receipt /artifacts/rust/swss/preparation.json
 ```
 
-Both checkouts must match the caller's declared source revisions. The caller
-must override `sonic-swss-common` to `/inputs/sonic-swss-common` and `sonic-swss`
-to `/inputs/sonic-swss`, retaining the generated files in those paths. Keep both
-receipts and generated locks as evidence. Never write generated metadata into a
-read-only repository cache. `sonic-buildimage` performs this preparation after
-verifying its fresh source checkout and before building any SWSS targets.
+Both checkouts must match the caller's declared source revisions. The helper
+validates their Cargo inputs against the shared graph. Apply the generated
+`/inputs/sonic-swss/.bazelrc.rust` overrides to the caller, and retain the staged
+shared module at the path recorded in that file. Also override `sonic-swss` to
+`/inputs/sonic-swss` and Common to `/inputs/sonic-swss-common` in the caller.
+Keep the receipt and shared generated lock as evidence. An older image
+preparation flow that expects component `Cargo.Bazel.lock` files needs updating
+before it consumes this version.
 
 After registering the managed GCC and bindgen toolchains and applying the
 root settings, build from the caller workspace:

@@ -1,4 +1,4 @@
-"""Prevent failed preparation from keeping an obsolete Common override active."""
+"""Prevent failed preparation from keeping obsolete Rust overrides active."""
 
 from contextlib import ExitStack
 import importlib.util
@@ -61,6 +61,20 @@ class PreparationBootstrapTest(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "checksum mismatch"):
             PREPARATION.main()
 
+        self.assertFalse(self.override.exists())
+        self.execute.assert_not_called()
+
+    def test_download_failure_removes_external_callers_owned_override(self):
+        self.override.write_text(OWNED_OVERRIDE)
+        external = self.workspace / "image.bazelrc.rust"
+        external.write_text(OWNED_OVERRIDE)
+        self.download.side_effect = URLError("helper download unavailable")
+        with patch.object(PREPARATION.sys, "argv", [
+            "prepare_rust.py", "--overrides-rc", str(external),
+        ]):
+            with self.assertRaises(URLError):
+                PREPARATION.main()
+        self.assertFalse(external.exists())
         self.assertFalse(self.override.exists())
         self.execute.assert_not_called()
 

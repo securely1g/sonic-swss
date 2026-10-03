@@ -113,7 +113,7 @@ build-env/custom-setup.sh
 /bazel-*
 /.bazelrc.user
 
-# Rust metadata generated from the tracked Cargo.lock before Bazel evaluation.
+# Private shared Rust graph prepared before Bazel evaluation.
 /Cargo.Bazel.lock
 /.cargo-bazel-prep/
 /.bazelrc.rust

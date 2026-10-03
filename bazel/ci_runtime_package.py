@@ -13,6 +13,7 @@ import tempfile
 from ci_production import ARCHITECTURES, ROOT, run, sha256
 from verify_runtime_package import read_contract, verify
 from verify_protobuf_runtime import build_and_validate
+from verify_rust_dependencies import verify as verify_rust_dependencies
 
 
 TARGETS = {
@@ -56,6 +57,7 @@ def main():
         "--color=no",
         "--curses=no",
     ]
+    rust_dependencies = verify_rust_dependencies(options, artifact_directory, run)
     rust_test = "//crates/countersyncd:common_rust_test"
     run(["bazel", "test"] + options + ["--test_output=errors", rust_test],
         log=artifact_directory / "common-rust-test.log")
@@ -121,6 +123,7 @@ def main():
         "configuration": "release, shared runtime/debug split",
         "targets": TARGETS,
         "rust_integration_test": {"target": rust_test, "status": "passed"},
+        "rust_dependencies": rust_dependencies,
         "artifacts": {str(path.relative_to(artifact_directory)): {"sha256": sha256(path), "bytes": path.stat().st_size}
                       for path in sorted(artifact_directory.rglob("*")) if path.is_file()},
     }

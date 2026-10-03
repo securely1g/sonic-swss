@@ -1,8 +1,46 @@
-load("@crates//:defs.bzl", "aliases", "all_crate_deps", "crate_edition")
 load("@rules_rust//cargo:defs.bzl", "cargo_toml_env_vars")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 
 package(default_visibility = ["//visibility:public"])
+
+# Both SONiC libraries use the same third-party Rust targets.
+COUNTER_SYNCD_DEPS = [
+    "@sonic_rust_deps//:ahash",
+    "@sonic_rust_deps//:byteorder",
+    "@sonic_rust_deps//:chrono",
+    "@sonic_rust_deps//:clap",
+    "@sonic_rust_deps//:color-eyre",
+    "@sonic_rust_deps//:env_logger",
+    "@sonic_rust_deps//:genetlink",
+    "@sonic_rust_deps//:libc",
+    "@sonic_rust_deps//:log",
+    "@sonic_rust_deps//:netlink-packet-core",
+    "@sonic_rust_deps//:netlink-packet-generic",
+    "@sonic_rust_deps//:netlink-packet-utils",
+    "@sonic_rust_deps//:netlink-sys",
+    "@sonic_rust_deps//:once_cell",
+    "@sonic_rust_deps//:opentelemetry",
+    "@sonic_rust_deps//:opentelemetry-http",
+    "@sonic_rust_deps//:opentelemetry-otlp",
+    "@sonic_rust_deps//:opentelemetry-proto",
+    "@sonic_rust_deps//:opentelemetry-semantic-conventions",
+    "@sonic_rust_deps//:opentelemetry-stdout",
+    "@sonic_rust_deps//:opentelemetry_sdk",
+    "@sonic_rust_deps//:prost",
+    "@sonic_rust_deps//:prost-types",
+    "@sonic_rust_deps//:reqwest",
+    "@sonic_rust_deps//:reqwest-middleware",
+    "@sonic_rust_deps//:reqwest-tracing",
+    "@sonic_rust_deps//:serde",
+    "@sonic_rust_deps//:serde_yaml",
+    "@sonic_rust_deps//:tokio",
+    "@sonic_rust_deps//:tonic",
+    "@sonic_rust_deps//:tonic-health",
+    "@sonic_rust_deps//:tracing",
+    "@sonic_rust_deps//:tracing-opentelemetry",
+    "@sonic_rust_deps//:tracing-subscriber",
+    "@sonic_swss_common//crates/swss-common:swss_common",
+]
 
 cargo_toml_env_vars(
     name = "cargo_env",
@@ -16,11 +54,9 @@ rust_library(
         ["src/**/*.rs"],
         exclude = ["src/main.rs"],
     ),
-    aliases = aliases(),
     crate_name = "countersyncd",
     crate_root = "src/lib.rs",
-    edition = crate_edition(),
-    proc_macro_deps = all_crate_deps(proc_macro = True),
+    edition = "2021",
     rustc_env_files = [":cargo_env"],
     # Keep source lines in the linked ELF before sonic_deploy_tar splits it.
     rustc_flags = [
@@ -28,7 +64,7 @@ rust_library(
         "-Cdebuginfo=2",
     ],
     version = "0.1.0",
-    deps = all_crate_deps(normal = True),
+    deps = COUNTER_SYNCD_DEPS,
 )
 
 rust_binary(
@@ -37,13 +73,11 @@ rust_binary(
         ["src/**/*.rs"],
         exclude = ["src/lib.rs"],
     ),
-    aliases = aliases(),
     crate_name = "countersyncd",
     crate_root = "src/main.rs",
-    edition = crate_edition(),
+    edition = "2021",
     # Preserve the interface-library paths supplied by rules_distroless.
     experimental_use_cc_common_link = 1,
-    proc_macro_deps = all_crate_deps(proc_macro = True),
     rustc_env_files = [":cargo_env"],
     # Keep source lines in the linked ELF before sonic_deploy_tar splits it.
     rustc_flags = [
@@ -51,18 +85,18 @@ rust_binary(
         "-Cdebuginfo=2",
     ],
     version = "0.1.0",
-    deps = [":countersyncd_lib"] + all_crate_deps(normal = True),
+    deps = [":countersyncd_lib"] + COUNTER_SYNCD_DEPS,
 )
 
 # Exercise Common's native string API and its Serde implementations through
-# SWSS's resolved Rust dependencies. No Redis service is needed.
+# the shared third-party graph. No Redis service is needed.
 rust_test(
     name = "common_rust_test",
     srcs = ["common_rust_test.rs"],
     edition = "2021",
     experimental_use_cc_common_link = 1,
     deps = [
-        "@crates//:serde_json",
-        "@crates//:swss-common",
+        "@sonic_rust_deps//:serde_json",
+        "@sonic_swss_common//crates/swss-common:swss_common",
     ],
 )
