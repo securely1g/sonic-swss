@@ -43,7 +43,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.0-5ee19a9375e667c0d507239927745de8fa29be07",
+    version = "0.0.1-5882fa4bd954b0d97d7acc1ef270225d981733a4",
     repo_name = "sonic_swss_common",
 )
 
@@ -114,7 +114,7 @@ register_toolchains(
 
 crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 crate.from_cargo(
-    name = "crates",
+    name = "swss_crates",
     cargo_lockfile = "//:Cargo.lock",
     lockfile = "//:Cargo.Bazel.lock",
     manifests = ["//:Cargo.toml"],
@@ -125,17 +125,19 @@ crate.from_cargo(
     ],
 )
 crate.annotation(
-    compile_data = ["@sonic_swss//tools/bazel/rust:swss_common_bindings_dir"],
     crate = "swss-common",
     gen_build_script = "off",
-    label_injections = {
-        "//tools/bazel/rust:swss_common_bindings_dir": "@sonic_swss",
-        "@sonic_swss_common//:libswsscommon_shared": "@sonic_swss_common",
-    },
-    rustc_env = {
-        "OUT_DIR": "$(execpath @sonic_swss//tools/bazel/rust:swss_common_bindings_dir)",
-    },
-    version = "0.1.0",
-    deps = ["@sonic_swss_common//:libswsscommon_shared"],
+    override_target_lib = "@sonic_swss_common//crates/swss-common:swss_common",
 )
-use_repo(crate, "crates")
+
+# Common's public types implement Serde traits. All consumers must use the same
+# Serde targets so those implementations work across the module boundary.
+crate.annotation(
+    crate = "serde",
+    override_target_lib = "@sonic_swss_common//crates/swss-common:serde",
+)
+crate.annotation(
+    crate = "serde_core",
+    override_target_lib = "@sonic_swss_common//crates/swss-common:serde_core",
+)
+use_repo(crate, crates = "swss_crates")

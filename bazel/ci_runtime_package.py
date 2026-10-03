@@ -56,6 +56,11 @@ def main():
         "--color=no",
         "--curses=no",
     ]
+    rust_test = "//crates/countersyncd:common_rust_test"
+    run(["bazel", "test"] + options + ["--test_output=errors", rust_test],
+        log=artifact_directory / "common-rust-test.log")
+    shutil.copy2(ROOT / "bazel-testlogs/crates/countersyncd/common_rust_test/test.xml",
+                 artifact_directory / "common-rust-test.xml")
     run(["bazel", "build"] + options + list(TARGETS.values()),
         log=artifact_directory / "build.log")
     packages = {}
@@ -115,6 +120,7 @@ def main():
         "target_platform": target_platform,
         "configuration": "release, shared runtime/debug split",
         "targets": TARGETS,
+        "rust_integration_test": {"target": rust_test, "status": "passed"},
         "artifacts": {str(path.relative_to(artifact_directory)): {"sha256": sha256(path), "bytes": path.stat().st_size}
                       for path in sorted(artifact_directory.rglob("*")) if path.is_file()},
     }

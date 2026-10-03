@@ -118,7 +118,17 @@ normal-release CI contract does not validate DEBUG, ASAN or GCOV settings.
 
 ## Rust and runtime/debug packages
 
-`//crates/countersyncd:countersyncd` uses `rules_rust`, bindgen and Clang.
+`//crates/countersyncd:countersyncd` uses `rules_rust` and the public Rust library
+`@sonic_swss_common//crates/swss-common:swss_common`. Common owns the Rust source,
+generated bindings and native-library linkage. Its registry module and the Cargo
+dependency select the same Common source revision.
+
+SWSS redirects the Cargo `swss-common` dependency to that target. Serde and
+`serde_core` also use Common's exported targets so Common's public types work
+with SWSS's serializers. `//crates/countersyncd:common_rust_test` checks native
+string ownership and a JSON roundtrip across this boundary without Redis; both
+native package CI jobs run it.
+
 [Cargo.Bazel.lock](../../Cargo.Bazel.lock) records crate metadata needed by
 external module callers; [Cargo.lock](../../Cargo.lock) remains the source
 dependency lock. To refresh Bazel metadata from it, build in the standalone
@@ -146,8 +156,10 @@ for installed-file, debug-symbol and runtime checks and their limits.
 ## Dependency resolution and caching
 
 [MODULE.bazel](../../MODULE.bazel) pins module/source versions and hashes.
-[.bazelrc](../../.bazelrc) uses the SONiC registry's maintained `main` endpoint
-followed by BCR, and enables Common's YANG C++ sources and generated schema.
+[.bazelrc](../../.bazelrc) uses the draft SONiC registry branch
+`codex/common-rust-library`, followed by BCR. That branch adds Common's Rust
+library registration; return to `main` when it lands. Common's YANG C++ sources
+and generated schema remain enabled.
 Keep the generated `MODULE.bazel.lock` out of Git; CI retains it with the
 resolved module graph. The [external module guide](../../bazel/external-module.md)
 explains the selected versions, required overrides and toolchain settings.

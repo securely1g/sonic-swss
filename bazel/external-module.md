@@ -17,7 +17,7 @@ bazel_dep(name = "rules_cc", version = "0.2.16")
 bazel_dep(name = "sonic-swss", version = "0.0.0", repo_name = "sonic_swss")
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.0-5ee19a9375e667c0d507239927745de8fa29be07",
+    version = "0.0.1-5882fa4bd954b0d97d7acc1ef270225d981733a4",
     repo_name = "sonic_swss_common",
 )
 bazel_dep(
@@ -50,7 +50,7 @@ register_toolchains("@gcc_toolchains//:all")
 Register GCC in the root caller so the managed toolchain takes priority over
 `local_config_cc`. The local SWSS override points to the source tree containing
 the component BUILD files. Declare Common directly so the caller can enable its
-YANG C++ sources. Common revision `5ee19a9375e667c0d507239927745de8fa29be07`
+YANG C++ sources. Common revision `5882fa4bd954b0d97d7acc1ef270225d981733a4`
 generates the configuration schema from its source inputs. The RE2 override
 selects the BCR metadata repair for its obsolete local C++ extension and retains
 the same upstream source archive.
@@ -62,7 +62,7 @@ Put `8.5.1` in the caller's `.bazelversion` and add these settings to its
 
 ```text
 common --check_direct_dependencies=off
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/codex/common-rust-library
 common --registry=https://bcr.bazel.build/
 common --lockfile_mode=update
 common --noincompatible_disallow_empty_glob
@@ -73,9 +73,12 @@ build:release --compilation_mode=opt
 ```
 
 Use the same single SONiC registry branch as SWSS `.bazelrc`, followed by BCR.
-The maintained `main` branch contains the exact selected build-infra, libnl3,
-Distroless, DASH, Common, SAI, sairedis and Protobuf registrations. The DASH
-entry landed through
+The draft `codex/common-rust-library` branch adds the Common Rust-library
+registration in [registry #32](https://github.com/securely1g/sonic-bazel-registry/pull/32).
+It includes the existing build-infra,
+libnl3, Distroless, DASH, SAI, sairedis and Protobuf entries. Common source comes
+from [Common #17](https://github.com/securely1g/sonic-swss-common/pull/17).
+Return to registry `main` after the new registration lands. The DASH entry landed through
 [registry #19](https://github.com/securely1g/sonic-bazel-registry/pull/19).
 DASH version `0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069` selects the
 landed source commit on its maintained `master` branch. CI and local commands
@@ -116,6 +119,13 @@ bazel build --config=release @sonic_swss//orchagent:orchagent
 ```
 
 ## Rust and package callers
+
+SWSS consumes Common's public Rust library target
+`@sonic_swss_common//crates/swss-common:swss_common`. Common owns its bindings
+and native-library linkage. SWSS's Cargo dependency and Bazel module select the
+same Common source revision. Its crate annotations reuse Common's Serde and
+`serde_core` targets, preserving the trait implementations of Common's public
+types when they are passed to SWSS serializers.
 
 Building `countersyncd` or the SWSS runtime package also needs a bindgen toolchain
 registered by the consuming root. Standalone SWSS selects LLVM 17.0.6 and
@@ -158,6 +168,7 @@ The C++ module uses these public interfaces for programs and tests:
 | Input | Public label |
 | --- | --- |
 | Common shared library | `@sonic_swss_common//:libswsscommon_shared` |
+| Common Rust library | `@sonic_swss_common//crates/swss-common:swss_common` |
 | SAI metadata libraries | `@sonic_sairedis//meta:saimetadata_shared`, `@sonic_sairedis//meta:saimeta_shared` |
 | sairedis shared library | `@sonic_sairedis//lib:sairedis_shared` |
 | DASH generated headers and shared library | `@sonic_dash_api//:dashapi` |

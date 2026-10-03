@@ -1,9 +1,9 @@
 common --check_direct_dependencies=off
 common --noincompatible_disallow_empty_glob
 
-# The maintained registry includes the landed DASH entry.
-# Keep module versions, source checksums and toolchain inputs pinned.
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main
+# Draft integration branch adds Common's source-owned Rust library.
+# Return to registry main after the Common registration lands.
+common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/codex/common-rust-library
 common --registry=https://bcr.bazel.build/
 
 # sonic-buildimage supplies checkout overrides when this repository is a submodule.

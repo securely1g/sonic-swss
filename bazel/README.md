@@ -69,6 +69,12 @@ of the required production check, so a failed package build or inspection fails
 that check. The GCOV preload runtime test stays in the same job, and CodeQL
 retains its selected C++ and Python coverage.
 
+Before packaging, `//crates/countersyncd:common_rust_test` checks the Common-owned
+Rust library through SWSS's dependency graph. It creates and clones a native
+string, drops the original and roundtrips the surviving value through SWSS's
+JSON serializer. This verifies native linkage and shared Serde traits without
+starting Redis. The package artifacts retain its test log and result.
+
 To build, validate and retain the same package evidence locally, configure
 Automake and [record the native contract](native-build-contract.md#configure-the-native-source-inventory)
 first, then run in native Debian Trixie:

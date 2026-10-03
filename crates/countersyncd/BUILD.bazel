@@ -1,6 +1,6 @@
 load("@crates//:defs.bzl", "aliases", "all_crate_deps", "crate_edition")
 load("@rules_rust//cargo:defs.bzl", "cargo_toml_env_vars")
-load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -52,4 +52,17 @@ rust_binary(
     ],
     version = "0.1.0",
     deps = [":countersyncd_lib"] + all_crate_deps(normal = True),
+)
+
+# Exercise Common's native string API and its Serde implementations through
+# SWSS's resolved Rust dependencies. No Redis service is needed.
+rust_test(
+    name = "common_rust_test",
+    srcs = ["common_rust_test.rs"],
+    edition = "2021",
+    experimental_use_cc_common_link = 1,
+    deps = [
+        "@crates//:serde_json",
+        "@crates//:swss-common",
+    ],
 )

@@ -1,5 +1,5 @@
 {
-  "checksum": "4f4489a30795ec6acb3b4ccce59ebb7ebb76d893585872f8bf6b63914c0e427c",
+  "checksum": "75b03bde36d4fc52d34f33a311b78590f18868cacc2ea036e695c99ec58ef589",
   "conditions": {
     "aarch64-pc-windows-gnullvm": [],
     "aarch64-unknown-linux-gnu": [
@@ -2233,6 +2233,10 @@
           {
             "id": "futures-timer 3.0.4",
             "target": "futures_timer"
+          },
+          {
+            "id": "serde_json 1.0.145",
+            "target": "serde_json"
           },
           {
             "id": "serial_test 3.2.0",
@@ -9783,6 +9787,9 @@
         "MIT"
       ],
       "name": "serde",
+      "override_targets": {
+        "lib": "@@sonic-swss-common+//crates/swss-common:serde"
+      },
       "package_url": "https://github.com/serde-rs/serde",
       "repository": {
         "Http": {
@@ -9839,6 +9846,9 @@
         "MIT"
       ],
       "name": "serde_core",
+      "override_targets": {
+        "lib": "@@sonic-swss-common+//crates/swss-common:serde_core"
+      },
       "package_url": "https://github.com/serde-rs/serde",
       "repository": {
         "Http": {
@@ -10508,9 +10518,6 @@
     },
     "swss-common 0.1.0": {
       "common_attrs": {
-        "compile_data": [
-          "@sonic_swss//tools/bazel/rust:swss_common_bindings_dir"
-        ],
         "deps": [
           {
             "id": "lazy_static 1.5.0",
@@ -10530,18 +10537,12 @@
           }
         ],
         "edition": "2021",
-        "extra_deps": [
-          "@sonic_swss_common//:libswsscommon_shared"
-        ],
         "proc_macro_deps": [
           {
             "id": "getset 0.1.6",
             "target": "getset"
           }
-        ],
-        "rustc_env": {
-          "OUT_DIR": "$(execpath @sonic_swss//tools/bazel/rust:swss_common_bindings_dir)"
-        }
+        ]
       },
       "library_target_name": "swss_common",
       "license": "Apache-2.0",
@@ -10549,13 +10550,16 @@
         "Apache-2.0"
       ],
       "name": "swss-common",
+      "override_targets": {
+        "lib": "@@sonic-swss-common+//crates/swss-common:swss_common"
+      },
       "package_url": "https://github.com/sonic/sonic-swss-common",
       "repository": {
         "Git": {
           "commitish": {
-            "Rev": "16a8a937f6726bfa2309fc4b78b1c7e1d86594dd"
+            "Rev": "5882fa4bd954b0d97d7acc1ef270225d981733a4"
           },
-          "remote": "https://github.com/sonic-net/sonic-swss-common.git",
+          "remote": "https://github.com/securely1g/sonic-swss-common.git",
           "strip_prefix": "crates/swss-common"
         }
       },
@@ -15344,6 +15348,7 @@
     "async-trait 0.1.89",
     "criterion 0.5.1",
     "futures-timer 3.0.4",
+    "serde_json 1.0.145",
     "serial_test 3.2.0",
     "tempfile 3.23.0",
     "tokio-stream 0.1.17",
