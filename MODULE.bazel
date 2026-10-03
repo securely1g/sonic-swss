@@ -43,7 +43,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.1-5882fa4bd954b0d97d7acc1ef270225d981733a4",
+    version = "0.0.1-a349bf0bb46952156651998a4c1e78ecf8c6cbaa",
     repo_name = "sonic_swss_common",
 )
 
@@ -116,6 +116,7 @@ crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 crate.from_cargo(
     name = "swss_crates",
     cargo_lockfile = "//:Cargo.lock",
+    # Generate before Bazel evaluation with tools/bazel/prepare_rust.py.
     lockfile = "//:Cargo.Bazel.lock",
     manifests = ["//:Cargo.toml"],
     skip_cargo_lockfile_overwrite = True,

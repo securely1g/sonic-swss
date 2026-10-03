@@ -85,6 +85,35 @@ jobs:
           repository-cache: true
           cache-version: "8.5.1"
 
+      - name: Prepare Rust metadata from the tracked Cargo lock
+        run: |
+          python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json
+          git ls-files --error-unmatch Cargo.lock
+          git diff --exit-code -- Cargo.lock
+          test -z "$(git ls-files Cargo.Bazel.lock)"
+          git check-ignore Cargo.Bazel.lock
+          cp Cargo.lock Cargo.Bazel.lock MODULE.bazel.lock artifacts/rust/
+          python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          import shutil
+          receipt = json.loads(Path("artifacts/rust/preparation.json").read_text())
+          for dependency in receipt["dependencies"]:
+              directory = Path("artifacts/rust/common")
+              directory.mkdir(parents=True, exist_ok=True)
+              workspace = Path(dependency["workspace"])
+              for name in ("Cargo.lock", "Cargo.Bazel.lock", "MODULE.bazel.lock", "preparation.json", "source-resolution.json"):
+                  shutil.copy2(workspace / name, directory / name)
+          PYTHON
+
+      - name: Upload Rust preparation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sonic-swss-rust-metadata-codeql
+          path: artifacts/rust/
+          if-no-files-found: error
+
       - name: Build production programs and selected C++ coverage targets
         run: >-
           python3 bazel/ci_production.py build

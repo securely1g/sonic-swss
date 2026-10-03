@@ -12,6 +12,9 @@ Trixie and execute on the same CPU they target. Linux x86-64 is the default;
 use `--config=aarch64` on a native ARM64 host.
 
 ```sh
+# Generate ignored Rust metadata and prepare the declared Common dependency.
+python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json
+
 # Build all 29 production C++ programs.
 bazel build --config=release //dist:cpp_binaries
 
@@ -129,11 +132,22 @@ with SWSS's serializers. `//crates/countersyncd:common_rust_test` checks native
 string ownership and a JSON roundtrip across this boundary without Redis; both
 native package CI jobs run it.
 
-[Cargo.Bazel.lock](../../Cargo.Bazel.lock) records crate metadata needed by
-external module callers; [Cargo.lock](../../Cargo.lock) remains the source
-dependency lock. To refresh Bazel metadata from it, build in the standalone
-SWSS workspace with `--repo_env=CARGO_BAZEL_REPIN=1`. External callers must also
-supply the [Rust toolchain and root settings](../../bazel/external-module.md#rust-and-package-callers).
+[Cargo.lock](../../Cargo.lock) is the checked-in source dependency lock.
+Run `python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json`
+before the first Bazel command and after changing Cargo or module inputs.
+The small launcher verifies a pinned helper from `sonic-build-infra`. It resolves
+Common from this module's declared dependency, prepares a private writable copy
+under `.cargo-bazel-prep`, and then generates SWSS's `Cargo.Bazel.lock` using the
+upstream `rules_rust` generator. `.bazelrc.rust` applies that Common override to
+subsequent commands. These generated files stay outside Git.
+
+Preparation fails if `Cargo.lock` changes or generated package versions, sources
+or checksums disagree with it. CI retains both modules' generated metadata and
+preparation receipts, including selected package pins and input hashes. Regenerate
+from tracked inputs even when restoring Bazel caches. External callers must
+prepare their writable Common and SWSS checkouts first, then supply the
+[Rust toolchain, overrides and root settings](../../bazel/external-module.md#rust-and-package-callers).
+
 
 `//dist:swss_pkg` contains 29 C++ programs, `countersyncd`, two Python helpers,
 32 Lua files and `netbouncer.json`, at the paths from Automake and

@@ -17,6 +17,7 @@ To reproduce native CI, first [configure Automake and record its build contract]
 in a native Debian Trixie environment. Then run from the repository root:
 
 ```sh
+python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json
 python3 bazel/ci_production.py build \
   --architecture amd64 \
   --native-contract /absolute/path/to/native-build-contract.json \
@@ -77,9 +78,10 @@ starting Redis. The package artifacts retain its test log and result.
 
 To build, validate and retain the same package evidence locally, configure
 Automake and [record the native contract](native-build-contract.md#configure-the-native-source-inventory)
-first, then run in native Debian Trixie:
+first, then prepare Rust metadata and run in native Debian Trixie:
 
 ```sh
+python3 tools/bazel/prepare_rust.py --receipt artifacts/rust/preparation.json
 python3 bazel/ci_runtime_package.py \
   --architecture amd64 \
   --native-contract /absolute/path/to/native-build-contract.json \
@@ -174,3 +176,12 @@ coverage.
 | [verify_protobuf_runtime.py](verify_protobuf_runtime.py) | Checks staged DASH and Protobuf runtime libraries. |
 | [verify_runtime_package.py](verify_runtime_package.py) | Validates installed SWSS files and matching C++/Rust debug symbols against the native contract. |
 | [ci_runtime_package.py](ci_runtime_package.py) | Builds and validates runtime/debug archives, including installed-orchagent Protobuf checks, and records package evidence. |
+
+## Generated Rust metadata
+
+Each native build and C++ CodeQL job prepares Common and SWSS before its first
+Bazel build. The `sonic-swss-rust-metadata-*` artifacts contain each module's
+tracked `Cargo.lock`, generated `Cargo.Bazel.lock`, and preparation receipt.
+The receipts bind selected versions and source/checksum pins to input hashes;
+preparation rejects changes to the tracked Cargo lock. Keep this bundle with
+the matching package or analysis run. See the [preparation guide](../tools/bazel/README.md#rust-and-runtimedebug-packages).

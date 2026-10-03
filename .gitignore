@@ -112,3 +112,9 @@ build-env/custom-setup.sh
 # Bazel outputs and local configuration
 /bazel-*
 /.bazelrc.user
+
+# Rust metadata generated from the tracked Cargo.lock before Bazel evaluation.
+/Cargo.Bazel.lock
+/.cargo-bazel-prep/
+/.bazelrc.rust
+/artifacts/

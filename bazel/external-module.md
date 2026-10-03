@@ -17,7 +17,7 @@ bazel_dep(name = "rules_cc", version = "0.2.16")
 bazel_dep(name = "sonic-swss", version = "0.0.0", repo_name = "sonic_swss")
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.1-5882fa4bd954b0d97d7acc1ef270225d981733a4",
+    version = "0.0.1-a349bf0bb46952156651998a4c1e78ecf8c6cbaa",
     repo_name = "sonic_swss_common",
 )
 bazel_dep(
@@ -50,7 +50,7 @@ register_toolchains("@gcc_toolchains//:all")
 Register GCC in the root caller so the managed toolchain takes priority over
 `local_config_cc`. The local SWSS override points to the source tree containing
 the component BUILD files. Declare Common directly so the caller can enable its
-YANG C++ sources. Common revision `5882fa4bd954b0d97d7acc1ef270225d981733a4`
+YANG C++ sources. Common revision `a349bf0bb46952156651998a4c1e78ecf8c6cbaa`
 generates the configuration schema from its source inputs. The RE2 override
 selects the BCR metadata repair for its obsolete local C++ extension and retains
 the same upstream source archive.
@@ -143,11 +143,27 @@ repository name is available, and add this to the caller's `.bazelrc`:
 build --@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=True
 ```
 
-The standalone SWSS `.bazelrc` already sets this option. SWSS supplies
-[Cargo.Bazel.lock](../Cargo.Bazel.lock) for Bazel's crate metadata and retains
-[Cargo.lock](../Cargo.lock) as the source dependency lock. Refresh Bazel metadata
-from that lock in the standalone SWSS workspace with
-`--repo_env=CARGO_BAZEL_REPIN=1` when needed.
+The standalone SWSS `.bazelrc` already sets this option. `Cargo.lock` remains
+tracked; `Cargo.Bazel.lock` is generated before Bazel evaluates a dependency's
+crate extension. `rules_rust` 0.74.0 requires that generated file for non-root
+modules, so a normal build action cannot generate it in time.
+
+Prepare writable checkouts in dependency order before invoking the caller:
+
+```sh
+python3 /inputs/sonic-swss-common/tools/bazel/prepare_rust.py \
+  --receipt /artifacts/rust/common/preparation.json
+python3 /inputs/sonic-swss/tools/bazel/prepare_rust.py \
+  --prepared-common /inputs/sonic-swss-common \
+  --receipt /artifacts/rust/swss/preparation.json
+```
+
+Both checkouts must match the caller's declared source revisions. The caller
+must override `sonic-swss-common` to `/inputs/sonic-swss-common` and `sonic-swss`
+to `/inputs/sonic-swss`, retaining the generated files in those paths. Keep both
+receipts and generated locks as evidence. Never write generated metadata into a
+read-only repository cache. `sonic-buildimage` performs this preparation after
+verifying its fresh source checkout and before building any SWSS targets.
 
 After registering the managed GCC and bindgen toolchains and applying the
 root settings, build from the caller workspace:
