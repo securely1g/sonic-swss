@@ -27,8 +27,5 @@ build:asan --//tools/bazel:asan=True
 build:gcov --//tools/bazel:gcov=True
 build:debug --compilation_mode=dbg
 
-# Preparation writes the resolved, writable Common module override here.
-try-import %workspace%/.bazelrc.rust
-
 # Keep local configuration outside source control.
 try-import %workspace%/.bazelrc.user

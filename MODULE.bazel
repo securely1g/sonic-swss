@@ -19,13 +19,9 @@ bazel_dep(name = "rules_cc", version = "0.2.16")
 bazel_dep(name = "rules_distroless", version = "0.9.4-sonic.1")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_python", version = "1.7.0")
-bazel_dep(name = "rules_rust", version = "0.74.0")
-bazel_dep(name = "rules_rust_bindgen", version = "0.74.0")
+bazel_dep(name = "rules_rs", version = "0.0.99")
 bazel_dep(name = "sai", version = "1.18.0-sonic.1")
 bazel_dep(name = "tar.bzl", version = "0.10.5")
-
-bazel_dep(name = "toolchains_llvm", version = "1.5.0", dev_dependency = True)
-
 bazel_dep(
     name = "sonic-build-infra",
     version = "0.0.14-f9876051703da05af745ffc781706e29fed7dd4b",
@@ -88,7 +84,10 @@ apt.install(
 )
 use_repo(apt, "swss_debian", "trixie")
 
-rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rules_rust = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
+use_repo(rules_rust, "rules_rust")
+
+rust = use_extension("@rules_rs//rs:rules_rust_reexported_extensions.bzl", "rust")
 rust.toolchain(
     edition = "2021",
     extra_target_triples = [
@@ -101,44 +100,40 @@ use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")
 
-# Bindgen toolchain selection belongs to the consuming root. This LLVM
-# selection is for standalone builds only.
-llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)
-llvm.toolchain(llvm_version = "17.0.6")
-use_repo(llvm, "llvm_toolchain_llvm")
+bindgen = use_extension("@rules_rs//rs:rules_rust_bindgen.bzl", "rules_rust_bindgen")
+use_repo(bindgen, "rules_rust_bindgen")
 
 register_toolchains(
-    "//tools/bazel/rust/dev:bindgen_toolchain",
+    "@rules_rust_bindgen//:all",
     dev_dependency = True,
 )
 
-crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
 crate.from_cargo(
     name = "swss_crates",
-    cargo_lockfile = "//:Cargo.lock",
-    # Generate before Bazel evaluation with tools/bazel/prepare_rust.py.
-    lockfile = "//:Cargo.Bazel.lock",
-    manifests = ["//:Cargo.toml"],
-    skip_cargo_lockfile_overwrite = True,
-    supported_platform_triples = [
+    cargo_lock = "//:Cargo.lock",
+    cargo_toml = "//:Cargo.toml",
+    platform_triples = [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
     ],
+    use_legacy_rules_rust_platforms = True,
 )
 crate.annotation(
     crate = "swss-common",
     gen_build_script = "off",
-    override_target_lib = "@sonic_swss_common//crates/swss-common:swss_common",
 )
 
-# Common's public types implement Serde traits. All consumers must use the same
-# Serde targets so those implementations work across the module boundary.
-crate.annotation(
-    crate = "serde",
-    override_target_lib = "@sonic_swss_common//crates/swss-common:serde",
+# Keep Common's library and public Serde traits owned by Common. rules_rs 0.0.99
+# does not expose override_target_lib, so map its generated repositories to the
+# Common module, whose aliases expose the locked Serde targets.
+use_repo(crate, "swss_crates")
+
+override_repo(
+    crate,
+    **{
+        "swss_crates__github.com_securely1g_sonic-swss-common.git_9327531d": "sonic_swss_common",
+        "swss_crates__serde-1.0.228": "sonic_swss_common",
+        "swss_crates__serde_core-1.0.228": "sonic_swss_common",
+    }
 )
-crate.annotation(
-    crate = "serde_core",
-    override_target_lib = "@sonic_swss_common//crates/swss-common:serde_core",
-)
-use_repo(crate, crates = "swss_crates")
