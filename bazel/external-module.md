@@ -17,7 +17,7 @@ bazel_dep(name = "rules_cc", version = "0.2.16")
 bazel_dep(name = "sonic-swss", version = "0.0.0", repo_name = "sonic_swss")
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.1-4150597fee0c644334613a5b2a8ef73fc7cb3d76",
+    version = "0.0.1-9327531db3f95490301c95957f7dd132fa8563a3",
     repo_name = "sonic_swss_common",
 )
 bazel_dep(
@@ -50,7 +50,7 @@ register_toolchains("@gcc_toolchains//:all")
 Register GCC in the root caller so the managed toolchain takes priority over
 `local_config_cc`. The local SWSS override points to the source tree containing
 the component BUILD files. Declare Common directly so the caller can enable its
-YANG C++ sources. Common revision `4150597fee0c644334613a5b2a8ef73fc7cb3d76`
+YANG C++ sources. Common revision `9327531db3f95490301c95957f7dd132fa8563a3`
 generates the configuration schema from its source inputs. The RE2 override
 selects the BCR metadata repair for its obsolete local C++ extension and retains
 the same upstream source archive.
