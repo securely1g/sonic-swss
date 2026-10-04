@@ -22,18 +22,22 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.14-f9876051703da05af745ffc781706e29fed7dd4b",
+    version = "0.0.15-6653ac1a0b15488a4b54f69ca78440b52be3ccf8",
     repo_name = "sonic_build_infra",
 )
 
 local_path_override(module_name = "sonic-swss", path = "/inputs/sonic-swss")
 git_override(
     module_name = "sonic-swss-common",
-    commit = "46c683611c57a881536994f96e298096fba16fa8",
+    commit = "5d696f73bacb7c02889ce909a7b177bc7d418016",
     remote = "https://github.com/securely1g/sonic-swss-common.git",
 )
 
 # Root overrides in imported modules do not propagate to this caller.
+single_version_override(
+    module_name = "tar.bzl",
+    version = "0.10.5-sonic.1",
+)
 single_version_override(
     module_name = "rules_cc",
     version = "0.2.20",
@@ -59,7 +63,7 @@ register_toolchains("@gcc_toolchains//:all")
 Register GCC in the root caller so the managed toolchain takes priority over
 `local_config_cc`. The local SWSS override points to the source tree containing
 the component BUILD files. Declare Common directly so the caller can enable its
-YANG C++ sources. Common revision `46c683611c57a881536994f96e298096fba16fa8`
+YANG C++ sources. Common revision `5d696f73bacb7c02889ce909a7b177bc7d418016`
 generates the configuration schema from its source inputs. The RE2 override
 selects the BCR metadata repair for its obsolete local C++ extension and retains
 the same upstream source archive.
@@ -84,7 +88,7 @@ build:release --compilation_mode=opt
 Use the same single SONiC registry branch as SWSS `.bazelrc`, followed by BCR.
 The maintained `main` branch contains the selected build-infra, libnl3,
 Distroless, DASH, SAI, sairedis and Protobuf registrations. Common uses the
-temporary Git source override shown above. The DASH
+landed Git source override shown above. The DASH
 entry landed through
 [registry #19](https://github.com/securely1g/sonic-bazel-registry/pull/19).
 DASH version `0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069` selects the
@@ -99,12 +103,12 @@ Distroless `0.9.4-sonic.1` retains include fragments for shared infrastructure
 APT imports; Protobuf headers and its runtime are now source-built.
 Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2`,
 `rules_distroless@0.9.4-sonic.1`, `protobuf-legacy@3.21.12-sonic.1`, and
-`sonic-build-infra@0.0.14-f9876051703da05af745ffc781706e29fed7dd4b` are selected,
-alongside `sonic-dash-api@0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069`.
+`sonic-build-infra@0.0.15-6653ac1a0b15488a4b54f69ca78440b52be3ccf8` are selected,
+with `tar.bzl@0.10.5-sonic.1` and `sonic-dash-api@0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069`.
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
 RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
 `-Wdate-time` and `_FORTIFY_SOURCE=3` override. Infrastructure source
-[`f987605`](https://github.com/securely1g/sonic-build-infra/commit/f9876051703da05af745ffc781706e29fed7dd4b)
+[`6653ac1`](https://github.com/securely1g/sonic-build-infra/commit/6653ac1a0b15488a4b54f69ca78440b52be3ccf8)
 also supplies `-Wl,-rpath-link=/lib/<multiarch>` for link-time dependency lookup;
 this does not embed an ELF runtime search path. The reviewed contract records
 this architecture-specific setting. The unused opt-in `as_needed` feature alias
@@ -154,9 +158,9 @@ No preparation script or `Cargo.Bazel.lock` is needed. Because Bazel applies
 `git_override` and `override_repo` only from the root module, an external caller
 must repeat SWSS's Common source selection and its three `crate` repository
 mappings. Keep the Common Git revision aligned with SWSS's Cargo pin, including
-the abbreviated revision in the generated repository name. Once Common is
-registered, the caller can replace the temporary Git override with that module
-version.
+the abbreviated revision in the generated repository name. The selected
+revision is the maintained-branch merge of Common #19. Once that revision is
+registered, the caller can replace the Git override with its module version.
 
 The native checks validate Common as a dependency of the SWSS root. A separate
 image root has not yet been validated with these mappings; test the same

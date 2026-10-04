@@ -121,7 +121,7 @@ normal-release CI contract does not validate DEBUG, ASAN or GCOV settings.
 `//crates/countersyncd:countersyncd` uses `rules_rs` 0.1.0 and Common's public
 Rust library, `@sonic_swss_common//crates/swss-common:swss_common`. Common owns
 the Rust sources, generated bindings and native-library linkage. Bazel and Cargo
-select the same Common source revision while that revision is under review.
+select the same landed Common source revision from its maintained `master`.
 
 `rules_rs` reads the tracked Cargo inputs directly. SWSS maps the generated
 Common repository to Common's public target and maps `serde` and `serde_core`

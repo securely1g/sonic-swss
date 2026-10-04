@@ -21,10 +21,10 @@ bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_python", version = "1.7.0")
 bazel_dep(name = "rules_rs", version = "0.1.0")
 bazel_dep(name = "sai", version = "1.18.0-sonic.1")
-bazel_dep(name = "tar.bzl", version = "0.10.5")
+bazel_dep(name = "tar.bzl", version = "0.10.5-sonic.1")
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.14-f9876051703da05af745ffc781706e29fed7dd4b",
+    version = "0.0.15-6653ac1a0b15488a4b54f69ca78440b52be3ccf8",
     repo_name = "sonic_build_infra",
 )
 bazel_dep(
@@ -43,11 +43,18 @@ bazel_dep(
     repo_name = "sonic_swss_common",
 )
 
-# Select the same Common source as Cargo while its rules_rs change is under review.
+# Select the same landed Common source as Cargo.
 git_override(
     module_name = "sonic-swss-common",
-    commit = "46c683611c57a881536994f96e298096fba16fa8",
+    commit = "5d696f73bacb7c02889ce909a7b177bc7d418016",
     remote = "https://github.com/securely1g/sonic-swss-common.git",
+)
+
+# Imported module overrides do not propagate to this root. Keep the patched
+# tar implementation required by Common and shared deployment rules.
+single_version_override(
+    module_name = "tar.bzl",
+    version = "0.10.5-sonic.1",
 )
 
 # Distroless imports rules_cc's private cc_import implementation. Releases
@@ -146,7 +153,7 @@ use_repo(crate, "swss_crates")
 override_repo(
     crate,
     **{
-        "swss_crates__github.com_securely1g_sonic-swss-common.git_46c68361": "sonic_swss_common",
+        "swss_crates__github.com_securely1g_sonic-swss-common.git_5d696f73": "sonic_swss_common",
         "swss_crates__serde-1.0.228": "sonic_swss_common",
         "swss_crates__serde_core-1.0.228": "sonic_swss_common",
     }
