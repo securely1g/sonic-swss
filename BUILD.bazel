@@ -1,0 +1,17 @@
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "Cargo.lock",
+    "Cargo.toml",
+    "LICENSE",
+])
+
+alias(
+    name = "swss_pkg",
+    actual = "//dist:swss_pkg",
+)
+
+alias(
+    name = "swss_pkg.debug_symbols",
+    actual = "//dist:swss_pkg.debug_symbols",
+)
