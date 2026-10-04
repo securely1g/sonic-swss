@@ -8,8 +8,6 @@ on:
   pull_request:
     branches:
       - 'master'
-      - 'bazel-bzlmod'
-      - 'codex/rules-rs'
       - '202[0-9][0-9][0-9]'
   workflow_dispatch:
 

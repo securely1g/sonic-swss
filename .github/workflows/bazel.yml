@@ -8,7 +8,7 @@ on:
         type: boolean
         default: false
   pull_request:
-    branches: [master, bazel-bzlmod, codex/rules-rs]
+    branches: [master]
   push:
     branches: [master]
 
