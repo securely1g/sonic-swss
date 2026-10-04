@@ -39,15 +39,8 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.1",
+    version = "0.0.1-6e0204634f2f78605abdd94ea2b013a46e0660ac",
     repo_name = "sonic_swss_common",
-)
-
-# Select the same landed Common source as Cargo.
-git_override(
-    module_name = "sonic-swss-common",
-    commit = "5d696f73bacb7c02889ce909a7b177bc7d418016",
-    remote = "https://github.com/securely1g/sonic-swss-common.git",
 )
 
 # Imported module overrides do not propagate to this root. Keep the patched
@@ -153,7 +146,7 @@ use_repo(crate, "swss_crates")
 override_repo(
     crate,
     **{
-        "swss_crates__github.com_securely1g_sonic-swss-common.git_5d696f73": "sonic_swss_common",
+        "swss_crates__github.com_securely1g_sonic-swss-common.git_6e020463": "sonic_swss_common",
         "swss_crates__serde-1.0.228": "sonic_swss_common",
         "swss_crates__serde_core-1.0.228": "sonic_swss_common",
     }
