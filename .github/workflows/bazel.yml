@@ -8,7 +8,7 @@ on:
         type: boolean
         default: false
   pull_request:
-    branches: [master]
+    branches: [master, bazel-bzlmod, codex/rules-rs]
   push:
     branches: [master]
 
@@ -93,6 +93,11 @@ jobs:
           disk-cache: swss-production-${{ matrix.architecture }}
           cache-version: "8.5.1"
 
+      - name: Verify Rust source inputs
+        run: |
+          test ! -e Cargo.Bazel.lock
+          git ls-files --error-unmatch Cargo.lock
+
       - name: Check Bazel formatting
         run: >-
           bazel run --lockfile_mode=update
@@ -112,4 +117,40 @@ jobs:
         with:
           name: sonic-swss-cpp-${{ matrix.architecture }}
           path: artifacts/production/
+          if-no-files-found: error
+
+      - name: Build and test the Rust program
+        shell: bash
+        run: |
+          options=(
+            --config=release
+            --lockfile_mode=update
+            --platforms=@sonic_build_infra//platforms:${{ matrix.platform }}
+            --jobs=4
+          )
+          bazel test "${options[@]}" --test_output=errors \
+            //crates/countersyncd:countersyncd \
+            //crates/countersyncd:common_rust_test
+          binary="$(bazel cquery "${options[@]}" //crates/countersyncd:countersyncd --output=files)"
+          test -x "$binary"
+          test "$("$binary" --version)" = "countersyncd 0.1.0"
+          mkdir -p artifacts/rust
+          cp "$binary" artifacts/rust/
+          cp bazel-testlogs/crates/countersyncd/common_rust_test/test.xml \
+            bazel-testlogs/crates/countersyncd/common_rust_test/test.log artifacts/rust/
+          python3 bazel/verify_rust_dependencies.py \
+            --architecture ${{ matrix.architecture }} \
+            --artifact-directory artifacts/rust
+
+      - name: Retain Rust dependency evidence
+        run: |
+          test ! -e Cargo.Bazel.lock
+          git diff --exit-code HEAD -- Cargo.lock
+          cp Cargo.toml Cargo.lock MODULE.bazel.lock artifacts/rust/
+
+      - name: Upload Rust dependency evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sonic-swss-rust-metadata-${{ matrix.architecture }}
+          path: artifacts/rust/
           if-no-files-found: error

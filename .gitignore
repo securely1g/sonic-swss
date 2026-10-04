@@ -112,3 +112,8 @@ build-env/custom-setup.sh
 # Bazel outputs and local configuration
 /bazel-*
 /.bazelrc.user
+
+# Generated Bazel state and CI artifacts.
+/MODULE.bazel.lock
+/Cargo.Bazel.lock
+/artifacts/

@@ -56,8 +56,38 @@ source archives and checksums remain pinned.
 
 The comparison does not inspect toolchain actions, response files, transitive
 provider paths, external header precedence, native link ordering or runtime
-equivalence. DEBUG, ASAN, GCOV, Rust, Cargo and runtime targets remain separate
-validation scope.
+equivalence. DEBUG, ASAN, GCOV, Rust and Cargo settings remain outside the
+native C++ comparison.
+
+## Rust validation
+
+Each native AMD64/ARM64 job also builds `countersyncd` in the release
+configuration, executes its version command and runs
+`//crates/countersyncd:common_rust_test`. The test creates and clones a native
+Common string, drops the original and roundtrips the surviving value through
+SWSS's JSON serializer. This checks native linkage and shared Serde traits
+without starting Redis.
+
+The job inspects the declared Rust dependencies of both the program and test.
+It requires Common's public library target and one shared pair of `serde` and
+`serde_core` targets. The `sonic-swss-rust-metadata-*` artifacts retain the
+program, test results, resolved target lists, tracked Cargo inputs and generated
+`MODULE.bazel.lock`. No preparation script or `Cargo.Bazel.lock` is needed.
+
+To repeat the Rust checks on native Debian Trixie:
+
+```sh
+bazel test --config=release --test_output=errors \
+  //crates/countersyncd:countersyncd \
+  //crates/countersyncd:common_rust_test
+bazel run --config=release //crates/countersyncd:countersyncd -- --version
+python3 bazel/verify_rust_dependencies.py \
+  --architecture amd64 --artifact-directory artifacts/rust
+```
+
+On native ARM64, add `--config=aarch64` to the Bazel commands and use
+`--architecture arm64`. These checks cover the program's build and Common
+interface; they do not start the daemon or validate a container image.
 
 ## Source Protobuf runtime validation
 
@@ -113,3 +143,4 @@ coverage.
 | [compare_build_contract.py](compare_build_contract.py) | Compares the retained native contract and configured Bazel rules. |
 | [ci_production.py](ci_production.py) | Builds, inspects and records production outputs and their validation receipts. |
 | [verify_protobuf_runtime.py](verify_protobuf_runtime.py) | Checks staged DASH and Protobuf runtime libraries. |
+| [verify_rust_dependencies.py](verify_rust_dependencies.py) | Checks that countersyncd and its Common test use the owning library and one set of Serde targets. |

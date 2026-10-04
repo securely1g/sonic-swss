@@ -21,6 +21,9 @@ bazel build --config=release //orchagent:orchagent
 # Build all C++ programs on an ARM64 host.
 bazel build --config=release --config=aarch64 //dist:cpp_binaries
 
+# Build the Rust program.
+bazel build --config=release //crates/countersyncd:countersyncd
+
 # Print a built program's output path.
 bazel cquery --config=release //orchagent:orchagent --output=files
 ```
@@ -110,19 +113,33 @@ library retains its startup constructor with `--as-needed`. These flags do not
 instrument Rust, matching the native build's separate Cargo invocation. The
 normal-release CI contract does not validate DEBUG, ASAN or GCOV settings.
 
-## Rust and runtime tar drafts
+## Rust builds
 
-These targets remain separate draft migration scope:
+`//crates/countersyncd:countersyncd` uses `rules_rs` 0.1.0 and Common's public
+Rust library, `@sonic_swss_common//crates/swss-common:swss_common`. Common owns
+the Rust sources, generated bindings and native-library linkage. Bazel and Cargo
+select the same Common source revision while that revision is under review.
 
-```sh
-bazel build --config=release //crates/countersyncd:countersyncd
-bazel build --config=release //dist:swss_pkg
-```
+`rules_rs` reads the tracked Cargo inputs directly. SWSS maps the generated
+Common repository to Common's public target and maps `serde` and `serde_core`
+to Common's exported targets. SWSS's JSON serializer therefore recognizes the
+Serde implementations on Common's string type because both use the same
+compiled Serde library. The native CI jobs build `countersyncd`, run its version
+command, test that JSON roundtrip and inspect the resolved dependency graph.
 
-`countersyncd` uses `rules_rust`, bindgen and Clang. `//dist:swss_pkg` (also
-available as `//:swss_pkg`) contains the 29 C++ programs, `countersyncd`, two
-Python helpers, 32 Lua files and `netbouncer.json`, installed at the paths from
-Automake and `debian/swss.install`. It has no Debian control metadata,
+To add a third-party crate, update the Cargo manifest and lock;
+`all_crate_deps` supplies the declared dependencies to
+[crates/countersyncd/BUILD.bazel](../../crates/countersyncd/BUILD.bazel).
+No preparation script or `Cargo.Bazel.lock` is needed. CI retains the Cargo
+inputs, generated `MODULE.bazel.lock` and resolved Serde labels. External
+callers must apply the same [Rust toolchain and root repository mappings](../../bazel/external-module.md#rust-callers).
+
+## Runtime tar draft
+
+The existing `//dist:swss_pkg` target remains separate package migration scope.
+It is also available as `//:swss_pkg` and contains the 29 C++ programs,
+`countersyncd`, two Python helpers, 32 Lua files and `netbouncer.json`, installed
+at the paths from Automake and `debian/swss.install`. It has no Debian control metadata,
 maintainer scripts or dependency declarations. The consuming image must supply
 the matching shared libraries; the tar contains only the SWSS payload.
 
