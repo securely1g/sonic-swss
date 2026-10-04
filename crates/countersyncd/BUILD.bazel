@@ -25,7 +25,11 @@ rust_library(
     crate_root = "src/lib.rs",
     edition = "2021",
     rustc_env = CARGO_PACKAGE_ENV,
-    rustc_flags = ["-Dwarnings"],
+    # Keep source lines in the linked ELF before sonic_deploy_tar splits it.
+    rustc_flags = [
+        "-Dwarnings",
+        "-Cdebuginfo=2",
+    ],
     version = "0.1.0",
     deps = all_crate_deps(normal = True),
 )
@@ -42,7 +46,11 @@ rust_binary(
     # Preserve the interface-library paths supplied by rules_distroless.
     experimental_use_cc_common_link = 1,
     rustc_env = CARGO_PACKAGE_ENV,
-    rustc_flags = ["-Dwarnings"],
+    # Keep source lines in the linked ELF before sonic_deploy_tar splits it.
+    rustc_flags = [
+        "-Dwarnings",
+        "-Cdebuginfo=2",
+    ],
     version = "0.1.0",
     deps = [":countersyncd_lib"] + all_crate_deps(normal = True),
 )

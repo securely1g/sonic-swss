@@ -32,16 +32,18 @@ jobs:
             platform: aarch64_trixie
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
-    container: debian:trixie-20260918@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c
+    container:
+      image: debian:trixie-20260918@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c
+      options: --init
     steps:
       - name: Install host build tools
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
             autoconf autoconf-archive automake autotools-dev binutils \
-            build-essential ca-certificates debhelper git libhiredis-dev \
+            build-essential ca-certificates debhelper gdb git libhiredis-dev \
             libjansson-dev libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev \
-            libnl-route-3-dev libteam-dev libtool pkg-config python3 tar
+            libnl-route-3-dev libteam-dev libtool libxml2 pkg-config python3 tar
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -153,4 +155,20 @@ jobs:
         with:
           name: sonic-swss-rust-metadata-${{ matrix.architecture }}
           path: artifacts/rust/
+          if-no-files-found: error
+
+      - name: Build and validate complete runtime and debug packages
+        env:
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          python3 bazel/ci_runtime_package.py
+          --architecture ${{ matrix.architecture }}
+          --native-contract "$RUNNER_TEMP/native-build-contract.json"
+          --artifact-directory artifacts/packages
+
+      - name: Upload runtime and matching debug packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sonic-swss-packages-${{ matrix.architecture }}
+          path: artifacts/packages/
           if-no-files-found: error

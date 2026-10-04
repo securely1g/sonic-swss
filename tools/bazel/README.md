@@ -24,6 +24,9 @@ bazel build --config=release --config=aarch64 //dist:cpp_binaries
 # Build the Rust program.
 bazel build --config=release //crates/countersyncd:countersyncd
 
+# Build the runtime tar and its matching detached debug symbols.
+bazel build --config=release //dist:swss_pkg //dist:swss_pkg.debug_symbols
+
 # Print a built program's output path.
 bazel cquery --config=release //orchagent:orchagent --output=files
 ```
@@ -134,14 +137,25 @@ No preparation script or `Cargo.Bazel.lock` is needed. CI retains the Cargo
 inputs, generated `MODULE.bazel.lock` and resolved Serde labels. External
 callers must apply the same [Rust toolchain and root repository mappings](../../bazel/external-module.md#rust-callers).
 
-## Runtime tar draft
+## Runtime and debug packages
 
-The existing `//dist:swss_pkg` target remains separate package migration scope.
-It is also available as `//:swss_pkg` and contains the 29 C++ programs,
-`countersyncd`, two Python helpers, 32 Lua files and `netbouncer.json`, installed
-at the paths from Automake and `debian/swss.install`. It has no Debian control metadata,
-maintainer scripts or dependency declarations. The consuming image must supply
-the matching shared libraries; the tar contains only the SWSS payload.
+`//dist:swss_pkg` contains 29 C++ programs, `countersyncd`, two Python helpers,
+32 Lua files and `netbouncer.json`, at the paths from Automake and
+`debian/swss.install`. [dist/BUILD.bazel](../../dist/BUILD.bazel) declares the
+program and data lists, including the three VS Lua names that install Mellanox
+implementations. Keep these lists in sync when adding installed files.
+
+`//dist:swss_pkg.debug_symbols` contains matching detached symbols under
+`usr/lib/debug/.build-id`. Both tars are split from the same linked ELFs. The
+shared rule retains C++ debug information without changing optimization mode;
+Rust targets retain source-line information explicitly. Root aliases
+`//:swss_pkg` and `//:swss_pkg.debug_symbols` select the same outputs. The runtime
+target carries `DebugSymbolsInfo` so consuming OCI images can collect symbols.
+
+The tar has no Debian control metadata, maintainer scripts or dependency
+declarations. It contains the SWSS payload; the consuming image must provide
+matching shared libraries. See the [package validation guide](../../bazel/README.md#runtime-and-debug-package-validation)
+for installed-file, debug-symbol and runtime checks and their limits.
 
 ## Dependency resolution and caching
 

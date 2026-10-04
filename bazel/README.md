@@ -89,6 +89,49 @@ On native ARM64, add `--config=aarch64` to the Bazel commands and use
 `--architecture arm64`. These checks cover the program's build and Common
 interface; they do not start the daemon or validate a container image.
 
+## Runtime and debug package validation
+
+Each native AMD64/ARM64 production job builds the runtime and detached-symbol
+targets and checks all 65 installed files and 30 ELF/debug pairs, including C++
+and Rust source lookup with GDB. Package validation is part of the production
+check, after the independent C++ and Rust artifacts have been uploaded.
+
+To build, validate and retain the same package evidence locally, configure
+Automake and [record the native contract](native-build-contract.md#configure-the-native-source-inventory)
+first, then run in native Debian Trixie:
+
+```sh
+python3 bazel/ci_runtime_package.py \
+  --architecture amd64 \
+  --native-contract /absolute/path/to/native-build-contract.json \
+  --artifact-directory /absolute/path/to/empty-package-output-directory
+```
+
+Use `--architecture arm64` on a native ARM64 host. To inspect already-built
+tars for installed paths, data bytes, ownership, permissions, ELF architecture,
+build IDs, debug-link checksums and GDB source-line lookup, run:
+
+```sh
+python3 bazel/verify_runtime_package.py --architecture amd64 \
+  --native-contract /absolute/path/to/native-build-contract.json \
+  --runtime bazel-bin/dist/swss_pkg_rttar.tar \
+  --debug bazel-bin/dist/swss_pkg.debug_symbols.tar
+```
+
+Use `bazel cquery --config=release //dist:swss_pkg --output=files` and the
+`.debug_symbols` target for exact paths when the output layout differs. The
+verifier requires a contract from the same checkout revision and native
+architecture. It compares every installed path, mode and data file with the
+native inventory and `debian/swss.install`.
+
+The `sonic-swss-packages-amd64` and `sonic-swss-packages-arm64` artifacts contain
+the runtime tar, matching symbols, native contract, validation report, resolved
+module graph, generated lockfile, build log and dependency runtime evidence.
+They also retain the Common/Serde test and graph results used by package
+validation. Their manifest records the tested revision, native architecture,
+target platform and file hashes. These tars do not establish full daemon
+runtime or installed-image behavior.
+
 ## Source Protobuf runtime validation
 
 SWSS and DASH share the source-built Protobuf 3.21.12 runtime from
@@ -107,6 +150,12 @@ For this temporary stage, `--inhibit-rpath ""` and `--library-path` select the
 staged libraries, and exact path checks reject fallback to another Protobuf or
 DASH library. The native test also executes DASH serialization against these
 packaged libraries.
+
+Package CI repeats these checks on `usr/bin/orchagent` extracted from the SWSS
+runtime tar. It stages DASH and Protobuf archives separately, executes the DASH
+serialization probe and verifies the dependencies' matching debug pairs. The
+package report records this as `protobuf_runtime`; retained dependency artifacts
+live under `dependencies/`. SWSS's installed payload stays unchanged.
 
 This does not check complete orchagent relocation, default installed-system
 library search paths or Redis/SAI daemon behavior. Package and RPATH checks
@@ -144,3 +193,5 @@ coverage.
 | [ci_production.py](ci_production.py) | Builds, inspects and records production outputs and their validation receipts. |
 | [verify_protobuf_runtime.py](verify_protobuf_runtime.py) | Checks staged DASH and Protobuf runtime libraries. |
 | [verify_rust_dependencies.py](verify_rust_dependencies.py) | Checks that countersyncd and its Common test use the owning library and one set of Serde targets. |
+| [verify_runtime_package.py](verify_runtime_package.py) | Validates installed SWSS files and matching C++/Rust debug symbols against the native contract. |
+| [ci_runtime_package.py](ci_runtime_package.py) | Builds and validates runtime/debug archives, including installed-orchagent Protobuf checks, and records package evidence. |

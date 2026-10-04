@@ -168,6 +168,23 @@ After applying the root settings, build from the caller workspace:
 bazel build --config=release @sonic_swss//crates/countersyncd:countersyncd
 ```
 
+## Package callers
+
+The runtime package includes `countersyncd`, so the consuming root needs the
+same Rust toolchains and repository mappings described above. Build the runtime
+tar and matching detached symbols from the caller workspace:
+
+```sh
+bazel build --config=release \
+  @sonic_swss//dist:swss_pkg \
+  @sonic_swss//dist:swss_pkg.debug_symbols
+```
+
+The consuming image supplies the matching shared libraries. See the
+[maintainer guide](../tools/bazel/README.md#runtime-and-debug-packages) for the
+payload and the [CI guide](README.md#runtime-and-debug-package-validation) for
+the package checks and their scope.
+
 ## Dependency interfaces
 
 The C++ module uses these public interfaces for programs and tests:
