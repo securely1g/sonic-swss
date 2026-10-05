@@ -14,7 +14,7 @@ import subprocess
 import sys
 
 MAIN = "https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main"
-BRANCH = "codex/shared-serde-validation"
+BRANCH = "codex/common-shared-serde"
 URL = MAIN.removesuffix("main") + BRANCH
 
 configuration = Path(".bazelrc").read_text()
