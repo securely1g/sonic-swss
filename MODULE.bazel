@@ -39,12 +39,12 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-rust-deps",
-    version = "0.0.2-94bb7d11851d4af5f4d436b3d025be25ba2c1278",
+    version = "0.0.2-127e89b9396824166caa6a300872398c6896bfec",
     repo_name = "sonic_rust_deps",
 )
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.2-9c31c2d577855a2c567557db49643125956b48d3",
+    version = "0.0.2-5ab1125ac17a3b2984584e7667dfcc991433b618",
     repo_name = "sonic_swss_common",
 )
 
