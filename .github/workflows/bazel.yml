@@ -95,10 +95,6 @@ jobs:
           disk-cache: swss-production-${{ matrix.architecture }}
           cache-version: "8.5.1"
 
-      # Temporary: the Common registry entry is unmerged.
-      - name: Select shared Serde registry for Draft validation
-        run: python3 .github/scripts/draft_registry.py artifacts/rust
-
       - name: Verify Rust source inputs
         run: |
           test ! -e Cargo.Bazel.lock
