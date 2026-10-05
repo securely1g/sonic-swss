@@ -38,8 +38,13 @@ bazel_dep(
     repo_name = "sonic_sairedis",
 )
 bazel_dep(
+    name = "sonic-rust-deps",
+    version = "0.0.2-127e89b9396824166caa6a300872398c6896bfec",
+    repo_name = "sonic_rust_deps",
+)
+bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.1-6e0204634f2f78605abdd94ea2b013a46e0660ac",
+    version = "0.0.2-cec18aae143f8b0338703ca0ab2683a60ef2465d",
     repo_name = "sonic_swss_common",
 )
 
@@ -120,34 +125,4 @@ use_repo(bindgen, "rules_rust_bindgen")
 register_toolchains(
     "@rules_rust_bindgen//:all",
     dev_dependency = True,
-)
-
-crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
-crate.from_cargo(
-    name = "swss_crates",
-    cargo_lock = "//:Cargo.lock",
-    cargo_toml = "//:Cargo.toml",
-    platform_triples = [
-        "aarch64-unknown-linux-gnu",
-        "x86_64-unknown-linux-gnu",
-    ],
-    use_legacy_rules_rust_platforms = True,
-)
-crate.annotation(
-    crate = "swss-common",
-    gen_build_script = "off",
-)
-
-# Keep Common's library and public Serde traits owned by Common. rules_rs 0.1.0
-# does not expose override_target_lib, so map its generated repositories to the
-# Common module, whose aliases expose the locked Serde targets.
-use_repo(crate, "swss_crates")
-
-override_repo(
-    crate,
-    **{
-        "swss_crates__github.com_securely1g_sonic-swss-common.git_6e020463": "sonic_swss_common",
-        "swss_crates__serde-1.0.228": "sonic_swss_common",
-        "swss_crates__serde_core-1.0.228": "sonic_swss_common",
-    }
 )

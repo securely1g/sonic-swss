@@ -85,7 +85,7 @@ reqwest-middleware = "0.3"
 reqwest-tracing = { version = "0.5", features = ["opentelemetry_0_25"] }
 
 # SONiC specific dependencies
-swss-common = { git = "https://github.com/securely1g/sonic-swss-common.git", rev = "6e0204634f2f78605abdd94ea2b013a46e0660ac" }
+swss-common = { git = "https://github.com/securely1g/sonic-swss-common.git", rev = "cec18aae143f8b0338703ca0ab2683a60ef2465d" }
 
 # Development dependencies
 tempfile = "3.12"

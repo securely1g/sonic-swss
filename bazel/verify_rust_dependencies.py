@@ -22,9 +22,9 @@ def verify(options, artifact_directory, run):
     ], capture=True)
     (artifact_directory / "rust-dependencies.txt").write_text(graph)
     reference = run(prefix + [
-        'kind("rust_library rule", deps(@sonic_swss_common//:serde))',
+        'kind("rust_library rule", deps(set(@sonic_rust_deps//:serde @sonic_rust_deps//:serde_core)))',
     ], capture=True)
-    (artifact_directory / "common-serde-dependencies.txt").write_text(reference)
+    (artifact_directory / "shared-serde-dependencies.txt").write_text(reference)
     actual = serde_labels(graph)
     expected = serde_labels(reference)
     if any(len(labels) != 1 for labels in expected.values()) or actual != expected:
@@ -35,7 +35,18 @@ def verify(options, artifact_directory, run):
     })
     if len(common) != 1:
         raise ValueError("SWSS must compile Common through its public Rust library target")
-    report = {"common_library": common[0], "shared_rust_libraries": actual}
+    # Retain configuration IDs as evidence; host tools and target libraries may
+    # legitimately have different configurations of the same shared target.
+    configurations = {
+        name: sorted(line for line in graph.splitlines()
+                     if line.split() and line.split()[0] in labels)
+        for name, labels in actual.items()
+    }
+    report = {
+        "common_library": common[0],
+        "shared_rust_libraries": actual,
+        "configured_shared_rust_libraries": configurations,
+    }
     (artifact_directory / "rust-dependencies.json").write_text(json.dumps(report, indent=2) + "\n")
     return report
 

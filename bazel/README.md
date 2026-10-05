@@ -69,8 +69,15 @@ SWSS's JSON serializer. This checks native linkage and shared Serde traits
 without starting Redis.
 
 The job inspects the declared Rust dependencies of both the program and test.
-It requires Common's public library target and one shared pair of `serde` and
-`serde_core` targets. The `sonic-swss-rust-metadata-*` artifacts retain the
+It requires Common's public library target and the `serde` and `serde_core`
+targets provided by the registry-published `sonic-rust-deps` module. Both Common
+and SWSS declare their Rust library dependencies directly through that module,
+so sharing also holds when they are dependencies of another build. Common no
+longer re-exports Serde. Keep the direct list in
+`crates/countersyncd/BUILD.bazel` aligned with its Cargo manifest; the shared
+module owns the pinned third-party crate graph and its feature union.
+The graph report also retains configuration IDs; host tools and target
+libraries may compile separate artifacts of the same shared target. The `sonic-swss-rust-metadata-*` artifacts retain the
 program, test results, resolved target lists, tracked Cargo inputs and generated
 `MODULE.bazel.lock`. No preparation script or `Cargo.Bazel.lock` is needed.
 

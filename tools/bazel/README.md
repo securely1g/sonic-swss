@@ -123,19 +123,22 @@ Rust library, `@sonic_swss_common//crates/swss-common:swss_common`. Common owns
 the Rust sources, generated bindings and native-library linkage. Bazel and Cargo
 select the same landed Common source revision from its maintained `master`.
 
-`rules_rs` reads the tracked Cargo inputs directly. SWSS maps the generated
-Common repository to Common's public target and maps `serde` and `serde_core`
-to Common's exported targets. SWSS's JSON serializer therefore recognizes the
+SWSS and Common both depend on the registry-published `sonic-rust-deps`
+module, which resolves third-party crates from its tracked Cargo inputs using
+`rules_rs`. Their `serde` and `serde_core` dependencies select the same public
+targets from that module. SWSS's JSON serializer therefore recognizes the
 Serde implementations on Common's string type because both use the same
 compiled Serde library. The native CI jobs build `countersyncd`, run its version
 command, test that JSON roundtrip and inspect the resolved dependency graph.
 
-To add a third-party crate, update the Cargo manifest and lock;
-`all_crate_deps` supplies the declared dependencies to
+To add a third-party crate, update the Cargo manifest and lock and the direct
+`RUST_DEPS` list in
 [crates/countersyncd/BUILD.bazel](../../crates/countersyncd/BUILD.bazel).
+If the shared module does not yet expose the required crate or features,
+update `sonic-rust-deps` in `sonic-build-infra` and publish its registry version.
 No preparation script or `Cargo.Bazel.lock` is needed. CI retains the Cargo
 inputs, generated `MODULE.bazel.lock` and resolved Serde labels. External
-callers must apply the same [Rust toolchain and root repository mappings](../../bazel/external-module.md#rust-callers).
+callers must apply the same [Rust toolchain settings](../../bazel/external-module.md#rust-callers).
 
 ## Runtime and debug packages
 
