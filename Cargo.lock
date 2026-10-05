@@ -2243,7 +2243,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 [[package]]
 name = "swss-common"
 version = "0.1.0"
-source = "git+https://github.com/securely1g/sonic-swss-common.git?rev=6e0204634f2f78605abdd94ea2b013a46e0660ac#6e0204634f2f78605abdd94ea2b013a46e0660ac"
+source = "git+https://github.com/securely1g/sonic-swss-common.git?rev=9c31c2d577855a2c567557db49643125956b48d3#9c31c2d577855a2c567557db49643125956b48d3"
 dependencies = [
  "bindgen",
  "getset",
