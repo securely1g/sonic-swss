@@ -84,6 +84,10 @@ jobs:
           repository-cache: true
           cache-version: "8.5.1"
 
+      # Temporary: the shared module and Common registry entries are unmerged.
+      - name: Select shared Serde registry for Draft validation
+        run: python3 .github/scripts/draft_registry.py artifacts/rust
+
       - name: Verify Rust source inputs
         run: |
           test ! -e Cargo.Bazel.lock
