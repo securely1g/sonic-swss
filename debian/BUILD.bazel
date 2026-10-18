@@ -1,0 +1,59 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+load("@sonic_build_infra//deb:metadata.bzl", "debian_library")
+load(":packages.bzl", "swss_debian_package")
+
+package(default_visibility = ["//visibility:public"])
+
+py_binary(
+    name = "stage",
+    srcs = ["stage.py"],
+)
+
+_LIBRARIES = [
+    "libboost-serialization1.83.0",
+    "libc6",
+    "libgcc-s1",
+    "libhiredis1.1.0",
+    "libjansson4",
+    "libjemalloc2",
+    "libstdc++6",
+    "libteam5",
+    "libteamdctl0",
+    "libuuid1",
+    "libyaml-cpp0.8",
+    "libzmq5",
+]
+
+[
+    debian_library(
+        name = name + "_metadata",
+        control_tar = "@swss_package_deps//" + name + ":control",
+        data = "@swss_package_deps//" + name + ":data",
+    )
+    for name in _LIBRARIES
+]
+
+swss_debian_package(
+    name = "swss",
+    package_name = "swss",
+    conffiles = True,
+    data = "//dist:swss_pkg",
+    dependencies = [":" + name + "_metadata" for name in _LIBRARIES] + [
+        "@sonic_swss_common//debian:libswsscommon_metadata",
+        "@sonic_dash_api//:libdashapi_metadata",
+        "@protobuf_legacy//sonic:libprotobuf32t64_metadata",
+        "@sonic_sairedis//debian:libsairedis_metadata",
+        "@sonic_sairedis//debian:libsaimetadata_metadata",
+        "@libnl3//:libnl_3_debian_metadata",
+        "@libnl3//:libnl_route_3_debian_metadata",
+        "@libnl3//:libnl_genl_3_debian_metadata",
+        "@libnl3//:libnl_nf_3_debian_metadata",
+        "@libyang//:libyang3_debian_metadata",
+    ],
+)
+
+swss_debian_package(
+    name = "swss_dbg",
+    package_name = "swss-dbg",
+    data = "//dist:swss_pkg.debug_symbols",
+)

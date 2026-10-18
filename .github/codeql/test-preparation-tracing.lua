@@ -54,5 +54,21 @@ for _, architecture in ipairs({"amd64", "arm64"}) do
         OperatingSystem = "linux"
     end
 end
+-- Current shared-tool bundles include a profile and a declared Python helper.
+for _, architecture in ipairs({"amd64", "arm64"}) do
+    for _, profile in ipairs({"documentation", "configure", "kerberos", "metadata", "debian"}) do
+        local prefix = profile == "documentation" and "" or profile .. "_"
+        local argv = {"external/sonic-build-infra+/tools/build_tools/prepare_runtime.py",
+            "--out", "bazel-out/exec/bin/external/sonic-build-infra+/tools/build_tools/" .. prefix .. "runtime_" .. architecture,
+            "--architecture", architecture, "--profile", profile, "--tar", "tools.tar.gz", "--tar", "make.tar.xz",
+            "--python-bootstrap", "external/sonic-build-infra+/tools/build_tools/dh_python_bootstrap.py"}
+        check(argv, true)
+        for _, change in ipairs({{7, "compiler"}, {8, "--compiler"}, {9, "source.cc"},
+                                  {12, "--source"}, {13, "external/other+/compile.py"}}) do
+            local altered = copy(argv); altered[change[1]] = change[2]; check(altered, false)
+        end
+        check(argv, false, "g++", "/usr/bin/g++")
+    end
+end
 check({}, false)
 print("Tool-preparation tracing checks passed: " .. count)

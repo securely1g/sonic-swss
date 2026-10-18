@@ -84,6 +84,9 @@ jobs:
           repository-cache: true
           cache-version: "8.5.1"
 
+      - name: Select the reviewed Draft package registry
+        run: python3 bazel/select_package_registry.py
+
       - name: Verify Rust source inputs
         run: |
           test ! -e Cargo.Bazel.lock
@@ -102,6 +105,7 @@ jobs:
           git diff --exit-code HEAD -- Cargo.lock
           mkdir -p artifacts/rust
           cp Cargo.toml Cargo.lock MODULE.bazel.lock artifacts/rust/
+          cp "$RUNNER_TEMP/package-registry/effective.bazelrc" artifacts/rust/
 
       - name: Upload Rust dependency evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

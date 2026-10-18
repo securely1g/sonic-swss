@@ -26,18 +26,37 @@ local function is_tool_preparation(compilerName, compilerPath, compilerArguments
     local script = "external/sai+/bazel/prepare_deb_tools.py"
     local shared = "external/sonic-build-infra+/tools/build_tools/prepare_runtime.py"
     local output, flag, suffix
+    local first, last = 6, #argv
     if argv[1] == script or ends_with(argv[1], "/" .. script) then
         output = "/external/sai+/bazel/sai_generator_tools"
         flag, suffix = "--deb", ".deb"
     elseif argv[1] == shared or ends_with(argv[1], "/" .. shared) then
-        output = "/external/sonic-build-infra+/tools/build_tools/runtime_" .. argv[5]
-        flag, suffix = "--tar", ".tar.gz"
+        local profile = "documentation"
+        if argv[6] == "--profile" then
+            profile = argv[7]
+            local profiles = {documentation = true, configure = true, kerberos = true, metadata = true, debian = true}
+            if not profiles[profile] then return false end
+            local bootstrap = "external/sonic-build-infra+/tools/build_tools/dh_python_bootstrap.py"
+            if argv[#argv - 1] ~= "--python-bootstrap" or
+               (argv[#argv] ~= bootstrap and not ends_with(argv[#argv], "/" .. bootstrap)) then return false end
+            first, last = 8, #argv - 2
+        end
+        local prefix = profile == "documentation" and "" or profile .. "_"
+        output = "/external/sonic-build-infra+/tools/build_tools/" .. prefix .. "runtime_" .. argv[5]
+        flag, suffix = "--tar", nil
     else
         return false
     end
     if argv[2] ~= "--out" or not ends_with(argv[3], output) then return false end
-    for index = 6, #argv, 2 do
-        if argv[index] ~= flag or not ends_with(argv[index + 1], suffix) then return false end
+    if first > last then return false end
+    for index = first, last, 2 do
+        if argv[index] ~= flag then return false end
+        local archive = argv[index + 1]
+        if suffix then
+            if not ends_with(archive, suffix) then return false end
+        elseif not ends_with(archive, ".tar.gz") and not ends_with(archive, ".tar.xz") then
+            return false
+        end
     end
     return true
 end

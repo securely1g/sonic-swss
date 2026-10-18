@@ -36,7 +36,7 @@ MODULE_INCLUDE_ROOTS = {
 MODULE_BUILD_MAPPINGS = {
     "reviewed_infra": {
         "module": "sonic-build-infra",
-        "version": "0.0.15-6653ac1a0b15488a4b54f69ca78440b52be3ccf8",
+        "version": "0.0.16-7339c0da8283fdc43dc90feb48136c9b574ee3e7",
     },
     "include_roots": {
         "<swss>": "component_headers",
@@ -67,11 +67,9 @@ MODULE_BUILD_MAPPINGS = {
     "bazel_only_compile_options": ["-Wno-missing-include-dirs"],
     # Recorded under the reviewed infra boundary, not inspected in cquery.
     "reviewed_toolchain_additional_link_options": ["-Wl,-z,now", "-Wl,--as-needed"],
-    # Link-time lookup from platform_dependent_args.bzl, not an ELF runtime path.
-    "reviewed_toolchain_target_link_options": {
-        "aarch64": ["-Wl,-rpath-link=/lib/aarch64-linux-gnu"],
-        "x86_64": ["-Wl,-rpath-link=/lib/x86_64-linux-gnu"],
-    },
+    # The reviewed toolchain uses declared package directories for link-time
+    # lookup; it no longer adds an absolute host /lib rpath-link option.
+    "reviewed_toolchain_target_link_options": {},
     "implicit_system_header_providers": {
         "all_programs": [
             "@trixie//libboost-dev:libboost",

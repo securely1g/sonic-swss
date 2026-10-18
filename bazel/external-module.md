@@ -22,7 +22,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.15-6653ac1a0b15488a4b54f69ca78440b52be3ccf8",
+    version = "0.0.16-7339c0da8283fdc43dc90feb48136c9b574ee3e7",
     repo_name = "sonic_build_infra",
 )
 
@@ -39,11 +39,11 @@ single_version_override(
 )
 single_version_override(
     module_name = "libnl3",
-    version = "3.7.0-sonic.2",
+    version = "3.7.0.sonic.4",
 )
 single_version_override(
     module_name = "rules_distroless",
-    version = "0.9.4-sonic.1",
+    version = "0.9.4.sonic.5",
 )
 single_version_override(
     module_name = "re2",
@@ -58,8 +58,8 @@ register_toolchains("@gcc_toolchains//:all")
 Register GCC in the root caller so the managed toolchain takes priority over
 `local_config_cc`. The local SWSS override points to the source tree containing
 the component BUILD files. Declare Common directly so the caller can enable its
-YANG C++ sources. Common revision `cec18aae143f8b0338703ca0ab2683a60ef2465d`
-generates the configuration schema from its source inputs. The RE2 override
+YANG C++ sources. The Common source override in `MODULE.bazel` also provides
+the actual Debian library package and its dependency metadata. The RE2 override
 selects the BCR metadata repair for its obsolete local C++ extension and retains
 the same upstream source archive.
 
@@ -80,40 +80,28 @@ common --@sonic_swss_common//tools/bazel:yang_modules=True
 build:release --compilation_mode=opt
 ```
 
-Use the same single SONiC registry branch as SWSS `.bazelrc`, followed by BCR.
-The maintained `main` branch contains the selected build-infra, libnl3,
-Distroless, DASH, SAI, sairedis, Protobuf and Common registrations. Common
-version `0.0.2-cec18aae143f8b0338703ca0ab2683a60ef2465d` selects the landed
-source also pinned by Cargo, published in
-[registry #43](https://github.com/securely1g/sonic-bazel-registry/pull/43). The DASH
-entry landed through
-[registry #19](https://github.com/securely1g/sonic-bazel-registry/pull/19).
-DASH version `0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069` selects the
-landed source commit on its maintained `master` branch. CI and local commands
-share this endpoint. Module versions, source archives/checksums, overlays and
-toolchain inputs remain pinned. The root libnl3 and Distroless overrides prevent
-higher-sorting dependency requests from replacing the selected SONiC fixes.
-The rules_cc 0.2.20 override keeps Distroless's private C++ import rule
-compatible with Bazel 8.5.1; releases 0.2.21 and 0.2.22 require a runtime
-toolchain type that this Bazel version does not provide.
-Distroless `0.9.4-sonic.1` retains include fragments for shared infrastructure
-APT imports; Protobuf headers and its runtime are now source-built.
-Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2`,
-`rules_distroless@0.9.4-sonic.1`, `protobuf-legacy@3.21.12-sonic.1`, and
-`sonic-build-infra@0.0.15-6653ac1a0b15488a4b54f69ca78440b52be3ccf8` are selected,
-with `tar.bzl@0.10.5-sonic.1` and `sonic-dash-api@0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069`.
+The tracked `.bazelrc` uses the maintained `main` endpoint. This Draft DEB
+producer also needs reviewed, unmerged package dependencies. Its CI verifies
+the frozen `codex/source-debian-runtime-permissions` registry branch and uses
+an effective RC file for that run; see the exact revision in
+[the CI registry selector](select_package_registry.py). External callers must select the
+same registry inputs and copy the root overrides in [MODULE.bazel](../MODULE.bazel),
+including the Common, sairedis and DASH source pins. Remove these temporary
+selections after their registrations land.
+
+The libnl3 and Distroless overrides keep the selected SONiC fixes. The rules_cc
+0.2.20 override keeps Distroless's C++ import rule compatible with Bazel 8.5.1.
+The infrastructure override selects one reviewed snapshot even when another
+component requests a lexically higher commit suffix. Check `bazel mod graph`
+and retain `MODULE.bazel.lock` with the build evidence; the lock remains
+untracked.
+
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
-RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
-`-Wdate-time` and `_FORTIFY_SOURCE=3` override. Infrastructure source
-[`6653ac1`](https://github.com/securely1g/sonic-build-infra/commit/6653ac1a0b15488a4b54f69ca78440b52be3ccf8)
-also supplies `-Wl,-rpath-link=/lib/<multiarch>` for link-time dependency lookup;
-this does not embed an ELF runtime search path. The reviewed contract records
-this architecture-specific setting. The unused opt-in `as_needed` feature alias
-was removed upstream; the default `--as-needed` argument remains enabled.
-Keep the generated `MODULE.bazel.lock` out of Git and retain it with CI
-resolution artifacts. The Common flag
-enables its YANG C++ sources; this Common version generates the configuration
-schema from source inputs.
+RELRO, immediate binding and `--as-needed`. SWSS adds `-Wdate-time` and
+`_FORTIFY_SOURCE=3`. The reviewed infrastructure snapshot also selects the
+downloaded assembler/linker and searches the declared Debian library paths.
+It no longer adds the former absolute `/lib/<multiarch>` rpath-link option.
+The native build-contract mapping records this exact infrastructure version.
 
 ## Build the C++ programs
 
@@ -133,8 +121,10 @@ bazel build --config=release @sonic_swss//orchagent:orchagent
 
 SWSS consumes Common's public Rust library target
 `@sonic_swss_common//crates/swss-common:swss_common`. Common owns its bindings
-and native-library linkage. SWSS's Cargo dependency and Bazel module select the
-same landed Common source revision. Both components use third-party targets
+and native-library linkage. SWSS's Cargo dependency retains its landed Common
+revision. The Bazel producer override adds reviewed Debian packaging; its Rust
+sources and manifest are identical to that Cargo revision. Both components use
+third-party targets
 from `sonic-rust-deps` version
 `0.0.2-127e89b9396824166caa6a300872398c6896bfec`, published in
 [registry #42](https://github.com/securely1g/sonic-bazel-registry/pull/42).
@@ -155,10 +145,10 @@ Expose the `rules_rust` compatibility repository through `rules_rs`, as SWSS's
 build --@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=True
 ```
 
-No preparation script, `Cargo.Bazel.lock`, repository mapping or Common source
-override is needed. The Common source revision is on its maintained `master`
-branch and is selected through the registered module version above. Keep any
-Cargo Common pin in the caller aligned with that source revision.
+No preparation script, `Cargo.Bazel.lock` or repository mapping is needed.
+The current Draft adds a Common source override for its Debian producer.
+Its Rust source and manifest are unchanged from the registered revision pinned
+by Cargo.toml and Cargo.lock; no Cargo dependency update is needed for packaging.
 
 The native checks validate Common as a dependency of the SWSS root. A separate
 image root has not yet been validated with this version; test the same
@@ -182,6 +172,9 @@ bazel build --config=release \
   @sonic_swss//dist:swss_pkg.debug_symbols
 ```
 
+The actual Debian targets are `@sonic_swss//debian:swss_deb` and
+`@sonic_swss//debian:swss_dbg_deb`; see [their package contract](../debian/README.md).
+They use the same runtime and detached symbols, with generated Debian metadata.
 The consuming image supplies the matching shared libraries. See the
 [maintainer guide](../tools/bazel/README.md#runtime-and-debug-packages) for the
 payload and the [CI guide](README.md#runtime-and-debug-package-validation) for
