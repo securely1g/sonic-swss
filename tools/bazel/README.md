@@ -35,6 +35,14 @@ Building SWSS from another workspace needs root-module toolchain registration
 and dependency overrides. Use the [external module guide](../../bazel/external-module.md)
 for the complete caller configuration and current pins.
 
+The root `.bazelrc` selects cached kernel-tool outputs with
+`--remote_download_regex=(^|.*/)tools/build_tools/kernel_runtime_(amd64|arm64)(/.*)?$`.
+This is required by the selected infrastructure even when its tools are only
+transitive inputs. Bazel does not load a dependency's `.bazelrc`; external
+callers must keep the same option in their root configuration, and commands
+using `--ignore_all_rc_files` must pass it explicitly. The normal SONiC registry
+endpoint remains `main`; draft CI records its temporary candidate endpoint.
+
 ## Make a routine build change
 
 Keep the native Automake declaration and the owning component's `BUILD.bazel`

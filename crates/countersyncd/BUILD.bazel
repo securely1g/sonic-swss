@@ -1,6 +1,8 @@
 load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
 load("@rules_rs//rs:rust_library.bzl", "rust_library")
 load("@rules_rs//rs:rust_test.bzl", "rust_test")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -97,12 +99,47 @@ rust_binary(
 # Exercise Common's native string API and its Serde implementations through
 # SWSS's resolved Rust dependencies. No Redis service is needed.
 rust_test(
-    name = "common_rust_test",
+    name = "common_rust_test_binary",
     srcs = ["common_rust_test.rs"],
     edition = "2021",
     experimental_use_cc_common_link = 1,
+    # The public wrapper supplies the declared transitive native runtime.
+    # Keep //... from also executing this binary against host libraries.
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
     deps = [
         "@sonic_rust_deps//:serde_json",
         "@sonic_swss_common//crates/swss-common:swss_common",
+    ],
+)
+
+# Common owns the selected ZeroMQ/runtime closure, including libsodium. Use its
+# existing test runtime for execution as well as its C++ inputs for linking.
+COMMON_RUNTIME_ARGS = [
+    "$(location @sonic_swss_common//tools/bazel/runtime:test_runtime)",
+    "-",
+] + select({
+    "@sonic_swss_common//tools/bazel:yang_modules_enabled": ["enabled"],
+    "//conditions:default": ["disabled"],
+})
+
+sh_test(
+    name = "common_rust_test",
+    srcs = ["@sonic_swss_common//tools/bazel/runtime:run_with_runtime.py"],
+    args = COMMON_RUNTIME_ARGS + ["$(location :common_rust_test_binary)"],
+    data = [
+        ":common_rust_test_binary",
+        "@sonic_swss_common//tools/bazel/runtime:test_runtime",
+    ],
+)
+
+sh_binary(
+    name = "countersyncd_with_runtime",
+    testonly = True,
+    srcs = ["@sonic_swss_common//tools/bazel/runtime:run_with_runtime.py"],
+    args = COMMON_RUNTIME_ARGS + ["$(location :countersyncd)"],
+    data = [
+        ":countersyncd",
+        "@sonic_swss_common//tools/bazel/runtime:test_runtime",
     ],
 )

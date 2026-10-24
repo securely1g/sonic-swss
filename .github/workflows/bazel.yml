@@ -95,6 +95,46 @@ jobs:
           disk-cache: swss-production-${{ matrix.architecture }}
           cache-version: "8.5.1"
 
+      - name: Select and record the draft registry snapshot
+        env:
+          REGISTRY_REVISION: 01b7128186ec5fdb669477dc51fe4c1dc12dd4b5
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import shlex
+          import shutil
+          main = "https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main"
+          revision = os.environ["REGISTRY_REVISION"]
+          assert re.fullmatch(r"[0-9a-f]{40}", revision)
+          registry = main.removesuffix("main") + revision
+          configuration = Path(".bazelrc").read_text()
+          assert configuration.count(main) == 1
+          artifacts = Path("artifacts/validation").resolve()
+          artifacts.mkdir(parents=True, exist_ok=True)
+          (artifacts / "declared.bazelrc").write_text(configuration)
+          effective = artifacts / "effective.bazelrc"
+          effective.write_text(configuration.replace(main, registry))
+          binary = shutil.which("bazel")
+          assert binary, "Bazel must be installed before selecting registry inputs"
+          directory = Path(os.environ["RUNNER_TEMP"]) / "draft-bazel"
+          directory.mkdir(exist_ok=True)
+          wrapper = directory / "bazel"
+          wrapper.write_text('#!/bin/sh\nif [ "${1-}" = --version ]; then\n  exec ' +
+                             shlex.quote(binary) + ' "$@"\nfi\nexec ' + shlex.quote(binary) +
+                             " --noworkspace_rc --bazelrc=" + shlex.quote(str(effective)) +
+                             ' "$@"\n')
+          wrapper.chmod(0o755)
+          with open(os.environ["GITHUB_PATH"], "a") as output:
+              output.write(str(directory) + "\n")
+          (artifacts / "registry-inputs.json").write_text(json.dumps({
+              "declared_registry": main, "registry": registry,
+              "observed_revision": revision, "draft_validation": True,
+          }, indent=2) + "\n")
+          PYTHON
+
       - name: Verify Rust source inputs
         run: |
           test ! -e Cargo.Bazel.lock
@@ -135,7 +175,10 @@ jobs:
             //crates/countersyncd:common_rust_test
           binary="$(bazel cquery "${options[@]}" //crates/countersyncd:countersyncd --output=files)"
           test -x "$binary"
-          test "$("$binary" --version)" = "countersyncd 0.1.0"
+          # Use Common's declared runtime for ZeroMQ's transitive libraries.
+          runtime_test_tmpdir="$(mktemp -d /tmp/sonic-swss-runtime.XXXXXX)"
+          test "$(bazel run "${options[@]}" --run_under="/usr/bin/env TEST_TMPDIR=$runtime_test_tmpdir" \
+            //crates/countersyncd:countersyncd_with_runtime -- --version)" = "countersyncd 0.1.0"
           mkdir -p artifacts/rust
           cp "$binary" artifacts/rust/
           cp bazel-testlogs/crates/countersyncd/common_rust_test/test.xml \
@@ -172,3 +215,11 @@ jobs:
           name: sonic-swss-packages-${{ matrix.architecture }}
           path: artifacts/packages/
           if-no-files-found: error
+
+      - name: Upload registry selection evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sonic-swss-registry-${{ matrix.architecture }}
+          path: artifacts/validation/
+          if-no-files-found: warn
