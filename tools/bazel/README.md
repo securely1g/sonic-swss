@@ -41,7 +41,7 @@ This is required by the selected infrastructure even when its tools are only
 transitive inputs. Bazel does not load a dependency's `.bazelrc`; external
 callers must keep the same option in their root configuration, and commands
 using `--ignore_all_rc_files` must pass it explicitly. The normal SONiC registry
-endpoint remains `main`; draft CI records its temporary candidate endpoint.
+endpoint remains `main`; CI records the maintained branch revision used for the run.
 
 ## Make a routine build change
 
