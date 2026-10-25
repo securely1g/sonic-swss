@@ -26,8 +26,29 @@ for _, architecture in ipairs({"amd64", "arm64"}) do
         {"external/sai+/bazel/prepare_deb_tools.py", "/external/sai+/bazel/sai_generator_tools", "--deb", "a.deb"},
         {"external/sonic-build-infra+/tools/build_tools/prepare_runtime.py", "/external/sonic-build-infra+/tools/build_tools/runtime_" .. architecture, "--tar", "content.tar.gz"},
     }) do
-        local argv = {spec[1], "--out", "bazel-out/exec/bin" .. spec[2], "--architecture", architecture, spec[3], spec[4]}
+        local argv = {spec[1], "--out", "bazel-out/exec/bin" .. spec[2], "--architecture", architecture}
+        if spec[3] == "--tar" then
+            for _, value in ipairs({"--profile", "documentation", "--launcher",
+                "bazel-out/exec/bin/external/sonic-build-infra+/tools/build_tools/runtime_launcher"}) do
+                table.insert(argv, value)
+            end
+        end
+        table.insert(argv, spec[3])
+        table.insert(argv, spec[4])
         check(argv, true)
+        if spec[3] == "--tar" then
+            for _, profile in ipairs({"configure", "kerberos", "foreign"}) do
+                local changed = copy(argv)
+                changed[7] = profile
+                check(changed, false)
+            end
+            local changed = copy(argv)
+            changed[9] = "/usr/bin/g++"
+            check(changed, false)
+            changed = copy(argv)
+            changed[10], changed[11] = "--source", "source.cc"
+            check(changed, false)
+        end
         local absolute = copy(argv)
         absolute[1] = "/execroot/_main/" .. absolute[1]
         check(absolute, true, "python3.11", python .. ".11")

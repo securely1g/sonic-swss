@@ -16,15 +16,16 @@ bazel_dep(name = "libnl3", version = "3.7.0-sonic.2")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf-legacy", version = "3.21.12-sonic.1", repo_name = "protobuf_legacy")
 bazel_dep(name = "rules_cc", version = "0.2.20")
-bazel_dep(name = "rules_distroless", version = "0.9.4-sonic.1")
+bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.13")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_python", version = "1.7.0")
 bazel_dep(name = "rules_rs", version = "0.1.0")
+bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "sai", version = "1.18.0-sonic.1")
 bazel_dep(name = "tar.bzl", version = "0.10.5-sonic.1")
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.15-6653ac1a0b15488a4b54f69ca78440b52be3ccf8",
+    version = "0.0.22-a12bc826d6f811a157db5c7c02a2fe033896cc14",
     repo_name = "sonic_build_infra",
 )
 bazel_dep(
@@ -66,12 +67,6 @@ single_version_override(
 single_version_override(
     module_name = "libnl3",
     version = "3.7.0-sonic.2",
-)
-
-# Stock and historical dotted releases sort above the native protobuf fix.
-single_version_override(
-    module_name = "rules_distroless",
-    version = "0.9.4-sonic.1",
 )
 
 # RE2's BCR metadata repair marks its legacy local C++ extension as development-only.

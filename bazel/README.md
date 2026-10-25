@@ -68,6 +68,12 @@ Common string, drops the original and roundtrips the surviving value through
 SWSS's JSON serializer. This checks native linkage and shared Serde traits
 without starting Redis.
 
+The public test stages Common's declared runtime archive before executing the
+Rust test binary, including ZeroMQ's transitive `libsodium.so.23` dependency.
+The internal binary is private and tagged `manual` so wildcard test selections
+do not also run it without that runtime. The version check uses the same
+owner-provided runtime helper; the production binary and package stay unchanged.
+
 The job inspects the declared Rust dependencies of both the program and test.
 It requires Common's public library target and the `serde` and `serde_core`
 targets provided by the registry-published `sonic-rust-deps` module. Both Common
@@ -87,7 +93,9 @@ To repeat the Rust checks on native Debian Trixie:
 bazel test --config=release --test_output=errors \
   //crates/countersyncd:countersyncd \
   //crates/countersyncd:common_rust_test
-bazel run --config=release //crates/countersyncd:countersyncd -- --version
+runtime_test_tmpdir="$(mktemp -d /tmp/sonic-swss-runtime.XXXXXX)"
+bazel run --config=release --run_under="/usr/bin/env TEST_TMPDIR=$runtime_test_tmpdir" \
+  //crates/countersyncd:countersyncd_with_runtime -- --version
 python3 bazel/verify_rust_dependencies.py \
   --architecture amd64 --artifact-directory artifacts/rust
 ```

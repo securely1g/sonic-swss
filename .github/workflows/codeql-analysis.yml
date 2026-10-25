@@ -84,6 +84,34 @@ jobs:
           repository-cache: true
           cache-version: "8.5.1"
 
+      - name: Select and record the maintained registry revision
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          import re
+          import subprocess
+          main = "https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main"
+          ref = "refs/heads/main"
+          advertised = subprocess.check_output(["git", "ls-remote",
+              "https://github.com/securely1g/sonic-bazel-registry.git", ref], text=True).split()
+          assert len(advertised) == 2 and advertised[1] == ref
+          revision = advertised[0]
+          assert re.fullmatch(r"[0-9a-f]{40}", revision)
+          registry = main
+          configuration = Path(".bazelrc").read_text()
+          assert configuration.count(main) == 1
+          artifacts = Path("artifacts/validation").resolve()
+          artifacts.mkdir(parents=True, exist_ok=True)
+          (artifacts / "declared.bazelrc").write_text(configuration)
+          effective = artifacts / "effective.bazelrc"
+          effective.write_text(configuration)
+          (artifacts / "registry-inputs.json").write_text(json.dumps({
+              "declared_registry": main, "registry": registry,
+              "observed_revision": revision, "draft_validation": False,
+          }, indent=2) + "\n")
+          PYTHON
+
       - name: Verify Rust source inputs
         run: |
           test ! -e Cargo.Bazel.lock
@@ -145,3 +173,11 @@ jobs:
           name: sonic-swss-codeql-cpp
           path: artifacts/codeql/
           if-no-files-found: error
+
+      - name: Upload registry selection evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sonic-swss-registry-codeql
+          path: artifacts/validation/
+          if-no-files-found: warn

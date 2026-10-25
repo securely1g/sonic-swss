@@ -19,24 +19,34 @@ local function is_tool_preparation(compilerName, compilerPath, compilerArguments
     end
 
     local argv = compilerArguments.argv
-    if not argv or #argv < 7 or (#argv - 5) % 2 ~= 0 then return false end
+    if not argv or #argv < 7 then return false end
     if argv[4] ~= "--architecture" or (argv[5] ~= "amd64" and argv[5] ~= "arm64") then
         return false
     end
     local script = "external/sai+/bazel/prepare_deb_tools.py"
     local shared = "external/sonic-build-infra+/tools/build_tools/prepare_runtime.py"
     local output, flag, suffix
+    local first_package = 6
     if argv[1] == script or ends_with(argv[1], "/" .. script) then
         output = "/external/sai+/bazel/sai_generator_tools"
         flag, suffix = "--deb", ".deb"
     elseif argv[1] == shared or ends_with(argv[1], "/" .. shared) then
+        -- The pinned action prepares documentation tools; its already-built
+        -- launcher is an input, not a compiler invocation inside this process.
+        if #argv < 11 or argv[6] ~= "--profile" or argv[7] ~= "documentation"
+            or argv[8] ~= "--launcher"
+            or not ends_with(argv[9], "/external/sonic-build-infra+/tools/build_tools/runtime_launcher") then
+            return false
+        end
         output = "/external/sonic-build-infra+/tools/build_tools/runtime_" .. argv[5]
         flag, suffix = "--tar", ".tar.gz"
+        first_package = 10
     else
         return false
     end
     if argv[2] ~= "--out" or not ends_with(argv[3], output) then return false end
-    for index = 6, #argv, 2 do
+    if #argv < first_package + 1 or (#argv - first_package + 1) % 2 ~= 0 then return false end
+    for index = first_package, #argv, 2 do
         if argv[index] ~= flag or not ends_with(argv[index + 1], suffix) then return false end
     end
     return true

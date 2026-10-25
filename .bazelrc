@@ -29,3 +29,6 @@ build:debug --compilation_mode=dbg
 
 # Keep local configuration outside source control.
 try-import %workspace%/.bazelrc.user
+
+# Dependencies do not import their .bazelrc; select cached kernel tools here.
+build --remote_download_regex=(^|.*/)tools/build_tools/kernel_runtime_(amd64|arm64)(/.*)?$

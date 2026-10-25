@@ -14,6 +14,7 @@ Create the caller's `MODULE.bazel` with the current iteration pins:
 module(name = "sonic_swss_caller")
 
 bazel_dep(name = "rules_cc", version = "0.2.20")
+bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.13")
 bazel_dep(name = "sonic-swss", version = "0.0.0", repo_name = "sonic_swss")
 bazel_dep(
     name = "sonic-swss-common",
@@ -22,7 +23,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.15-6653ac1a0b15488a4b54f69ca78440b52be3ccf8",
+    version = "0.0.22-a12bc826d6f811a157db5c7c02a2fe033896cc14",
     repo_name = "sonic_build_infra",
 )
 
@@ -40,10 +41,6 @@ single_version_override(
 single_version_override(
     module_name = "libnl3",
     version = "3.7.0-sonic.2",
-)
-single_version_override(
-    module_name = "rules_distroless",
-    version = "0.9.4-sonic.1",
 )
 single_version_override(
     module_name = "re2",
@@ -77,12 +74,15 @@ common --noincompatible_disallow_empty_glob
 common --platforms=@sonic_build_infra//platforms:x86_64_trixie
 common --@sonic_swss_common//tools/bazel:yang_modules=True
 
+build --remote_download_regex=(^|.*/)tools/build_tools/kernel_runtime_(amd64|arm64)(/.*)?$
 build:release --compilation_mode=opt
 ```
 
 Use the same single SONiC registry branch as SWSS `.bazelrc`, followed by BCR.
-The maintained `main` branch contains the selected build-infra, libnl3,
-Distroless, DASH, SAI, sairedis, Protobuf and Common registrations. Common
+The maintained `main` branch remains the default. Until the infrastructure
+candidate is published, draft CI explicitly replaces that endpoint with the
+reviewed registry snapshot recorded in the workflow. The other selected libnl3,
+Distroless, DASH, SAI, sairedis, Protobuf and Common registrations are published. Common
 version `0.0.2-cec18aae143f8b0338703ca0ab2683a60ef2465d` selects the landed
 source also pinned by Cargo, published in
 [registry #43](https://github.com/securely1g/sonic-bazel-registry/pull/43). The DASH
@@ -91,24 +91,26 @@ entry landed through
 DASH version `0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069` selects the
 landed source commit on its maintained `master` branch. CI and local commands
 share this endpoint. Module versions, source archives/checksums, overlays and
-toolchain inputs remain pinned. The root libnl3 and Distroless overrides prevent
-higher-sorting dependency requests from replacing the selected SONiC fixes.
+toolchain inputs remain pinned. The root libnl3 override retains its selected SONiC fix; the current
+Distroless version sorts above historical requests without an override.
 The rules_cc 0.2.20 override keeps Distroless's private C++ import rule
 compatible with Bazel 8.5.1; releases 0.2.21 and 0.2.22 require a runtime
 toolchain type that this Bazel version does not provide.
-Distroless `0.9.4-sonic.1` retains include fragments for shared infrastructure
+Distroless `0.9.4.sonic.13` retains include fragments for shared infrastructure
 APT imports; Protobuf headers and its runtime are now source-built.
 Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2`,
-`rules_distroless@0.9.4-sonic.1`, `protobuf-legacy@3.21.12-sonic.1`, and
-`sonic-build-infra@0.0.15-6653ac1a0b15488a4b54f69ca78440b52be3ccf8` are selected,
+`rules_distroless@0.9.4.sonic.13`, `protobuf-legacy@3.21.12-sonic.1`, and
+`sonic-build-infra@0.0.22-a12bc826d6f811a157db5c7c02a2fe033896cc14` are selected,
 with `tar.bzl@0.10.5-sonic.1` and `sonic-dash-api@0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069`.
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
 RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
 `-Wdate-time` and `_FORTIFY_SOURCE=3` override. Infrastructure source
-[`6653ac1`](https://github.com/securely1g/sonic-build-infra/commit/6653ac1a0b15488a4b54f69ca78440b52be3ccf8)
-also supplies `-Wl,-rpath-link=/lib/<multiarch>` for link-time dependency lookup;
-this does not embed an ELF runtime search path. The reviewed contract records
-this architecture-specific setting. The unused opt-in `as_needed` feature alias
+[`a12bc82`](https://github.com/securely1g/sonic-build-infra/commit/a12bc826d6f811a157db5c7c02a2fe033896cc14)
+uses the declared shared Debian sysroot for library lookup. For AMD64 its joined
+arguments include `-L<sysroot>/usr/lib/gcc/x86_64-linux-gnu/14` and
+`-L<sysroot>/usr/lib/x86_64-linux-gnu`; `<sysroot>` abbreviates the declared input
+path. These replace the older host `/lib/<multiarch>` link search. The reviewed
+contract records both architecture variants; it does not infer them from cquery. The unused opt-in `as_needed` feature alias
 was removed upstream; the default `--as-needed` argument remains enabled.
 Keep the generated `MODULE.bazel.lock` out of Git and retain it with CI
 resolution artifacts. The Common flag
