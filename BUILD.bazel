@@ -4,6 +4,9 @@ exports_files([
     "Cargo.lock",
     "Cargo.toml",
     "LICENSE",
+    "debian/control",
+    "debian/changelog",
+    "debian/compat",
 ])
 
 alias(

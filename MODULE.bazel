@@ -25,17 +25,17 @@ bazel_dep(name = "sai", version = "1.18.0-sonic.1")
 bazel_dep(name = "tar.bzl", version = "0.10.5-sonic.1")
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.22-a12bc826d6f811a157db5c7c02a2fe033896cc14",
+    version = "0.0.25-1341eaf4a7759ef0121ae7c17edcd0000d063038",
     repo_name = "sonic_build_infra",
 )
 bazel_dep(
     name = "sonic-dash-api",
-    version = "0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069",
+    version = "0.0.5-edc5cc5dd6e3b8c6972fcdc520b26a2222f4e0a5",
     repo_name = "sonic_dash_api",
 )
 bazel_dep(
     name = "sonic-sairedis",
-    version = "0.0.0-e9402b77ba43aee6323665921598ef67e66293f9",
+    version = "0.0.4-c320d8ec2bd9e6f2cca2a575221ee8ebafab5923",
     repo_name = "sonic_sairedis",
 )
 bazel_dep(
@@ -45,7 +45,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.2-cec18aae143f8b0338703ca0ab2683a60ef2465d",
+    version = "0.0.7-f7fda40c02b3a8b4bbbff3d17fca3dff83f4cbad",
     repo_name = "sonic_swss_common",
 )
 
@@ -86,9 +86,14 @@ apt.install(
     dependency_set = "swss_debian",
     packages = [
         "libjansson-dev",
+        "libjansson4",
         "libjemalloc-dev",
+        "libjemalloc2",
         "libteam-dev",
+        "libteam5",
+        "libteamdctl0",
         "libyaml-cpp-dev",
+        "libyaml-cpp0.8",
     ],
     suites = [
         "trixie",
