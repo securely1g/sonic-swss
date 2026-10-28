@@ -197,6 +197,13 @@ jobs:
           --native-contract "$RUNNER_TEMP/native-build-contract.json"
           --artifact-directory artifacts/packages
 
+      - name: Build producer package metadata
+        run: |
+          bazel build --config=release --lockfile_mode=update \
+            --platforms=@sonic_build_infra//platforms:${{ matrix.platform }} \
+            //dist:runtime_packages.json
+          cp bazel-bin/dist/runtime_packages.json artifacts/packages/runtime_packages.json
+
       - name: Upload runtime and matching debug packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
