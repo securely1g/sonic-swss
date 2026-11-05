@@ -65,7 +65,6 @@ MODULE_BUILD_MAPPINGS = {
         "-Werror=format-security": ["-Werror"],
     },
     "bazel_only_compile_options": ["-Wno-missing-include-dirs"],
-    "bazel_only_link_options": ["-Wl,--allow-shlib-undefined"],
     # Recorded under the reviewed infra boundary, not inspected in cquery.
     "reviewed_toolchain_additional_link_options": ["-Wl,-z,now", "-Wl,--as-needed"],
     # Source-reviewed link search paths; <sysroot> denotes the declared input.
