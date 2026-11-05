@@ -149,10 +149,12 @@ runtime_packages(
         "@sonic_dash_api//:runtime_packages.json",
     ],
     packages = {"swss": ":swss_pkg"},
-    required_paths = {"swss": [
-        "usr/bin/orchagent",
-        "usr/bin/portsyncd",
-        "usr/bin/teammgrd",
-        "usr/bin/countersyncd",
-    ]},
+    required_paths = {
+        "swss": [
+            "usr/bin/orchagent",
+            "usr/bin/portsyncd",
+            "usr/bin/teammgrd",
+            "usr/bin/countersyncd",
+        ],
+    },
 )

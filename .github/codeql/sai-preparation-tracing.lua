@@ -31,14 +31,17 @@ local function is_tool_preparation(compilerName, compilerPath, compilerArguments
         output = "/external/sai+/bazel/sai_generator_tools"
         flag, suffix = "--deb", ".deb"
     elseif argv[1] == shared or ends_with(argv[1], "/" .. shared) then
-        -- The pinned action prepares documentation tools; its already-built
-        -- launcher is an input, not a compiler invocation inside this process.
-        if #argv < 11 or argv[6] ~= "--profile" or argv[7] ~= "documentation"
+        -- The pinned actions prepare documentation and configure tools; their
+        -- already-built launcher is an input, not a compiler invocation inside
+        -- this process.
+        if #argv < 11 or argv[6] ~= "--profile"
+            or (argv[7] ~= "documentation" and argv[7] ~= "configure")
             or argv[8] ~= "--launcher"
             or not ends_with(argv[9], "/external/sonic-build-infra+/tools/build_tools/runtime_launcher") then
             return false
         end
-        output = "/external/sonic-build-infra+/tools/build_tools/runtime_" .. argv[5]
+        local runtime_name = argv[7] == "configure" and "configure_runtime_" or "runtime_"
+        output = "/external/sonic-build-infra+/tools/build_tools/" .. runtime_name .. argv[5]
         flag, suffix = "--tar", ".tar.gz"
         first_package = 10
     else
@@ -47,7 +50,9 @@ local function is_tool_preparation(compilerName, compilerPath, compilerArguments
     if argv[2] ~= "--out" or not ends_with(argv[3], output) then return false end
     if #argv < first_package + 1 or (#argv - first_package + 1) % 2 ~= 0 then return false end
     for index = first_package, #argv, 2 do
-        if argv[index] ~= flag or not ends_with(argv[index + 1], suffix) then return false end
+        local valid_suffix = ends_with(argv[index + 1], suffix)
+            or (argv[7] == "configure" and ends_with(argv[index + 1], ".tar.xz"))
+        if argv[index] ~= flag or not valid_suffix then return false end
     end
     return true
 end

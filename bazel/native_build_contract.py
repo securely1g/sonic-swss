@@ -36,7 +36,7 @@ MODULE_INCLUDE_ROOTS = {
 MODULE_BUILD_MAPPINGS = {
     "reviewed_infra": {
         "module": "sonic-build-infra",
-        "version": "0.0.22-a12bc826d6f811a157db5c7c02a2fe033896cc14",
+        "version": "0.0.26-51c838da6ff57295fde6e0bc3807841cb31a8568",
     },
     "include_roots": {
         "<swss>": "component_headers",
@@ -65,6 +65,7 @@ MODULE_BUILD_MAPPINGS = {
         "-Werror=format-security": ["-Werror"],
     },
     "bazel_only_compile_options": ["-Wno-missing-include-dirs"],
+    "bazel_only_link_options": ["-Wl,--allow-shlib-undefined"],
     # Recorded under the reviewed infra boundary, not inspected in cquery.
     "reviewed_toolchain_additional_link_options": ["-Wl,-z,now", "-Wl,--as-needed"],
     # Source-reviewed link search paths; <sysroot> denotes the declared input.

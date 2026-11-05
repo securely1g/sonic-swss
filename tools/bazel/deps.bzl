@@ -12,11 +12,13 @@ SWSS_DEPS = [
     "@libnl3//:libnl_route_3",
     "@trixie//libboost-dev:libboost",
     "@trixie//libhiredis-dev:libhiredis",
-    "@trixie//libzmq3-dev:libzmq3",
     "@trixie//nlohmann-json3-dev:nlohmann-json3",
 ]
 
-CFGMGR_DEPS = SWSS_DEPS + ["@sonic_sairedis//meta:saimeta_shared"]
+CFGMGR_DEPS = SWSS_DEPS + [
+    "@sonic_sairedis//meta:saimeta_shared",
+    "@trixie//libzmq3-dev:libzmq3",
+]
 
 ORCHAGENT_DEPS = CFGMGR_DEPS + [
     "@sonic_dash_api//:dashapi",

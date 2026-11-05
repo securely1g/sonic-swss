@@ -66,4 +66,5 @@ if __name__ == "__main__":
         "--config=release",
         "--lockfile_mode=update",
         "--platforms=" + ARCHITECTURES[args.architecture][2],
+        "--host_platform=" + ARCHITECTURES[args.architecture][2],
     ], args.artifact_directory, run)

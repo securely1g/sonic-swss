@@ -19,7 +19,7 @@ def _cxxopts(cxxopts, ndebug, asan):
     return CXXFLAGS_COMMON + (DBGFLAGS_NDEBUG if ndebug else DBGFLAGS) + (ASAN_COPTS if asan else []) + GCOV_COPTS + cxxopts
 
 def _linkopts(linkopts, asan):
-    return (ASAN_LINKOPTS if asan else []) + GCOV_LINKOPTS + linkopts
+    return ["-Wl,--allow-shlib-undefined"] + (ASAN_LINKOPTS if asan else []) + GCOV_LINKOPTS + linkopts
 
 def _local_include_cxxopts(local_include_directories):
     """Returns ordered local -I options relative to the SWSS repository."""

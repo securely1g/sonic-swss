@@ -116,6 +116,7 @@ rust_test(
 # Common owns the selected ZeroMQ/runtime closure, including libsodium. Use its
 # existing test runtime for execution as well as its C++ inputs for linking.
 COMMON_RUNTIME_ARGS = [
+    "$(location @patchelf//:patchelf)",
     "$(location @sonic_swss_common//tools/bazel/runtime:test_runtime)",
     "-",
 ] + select({
@@ -129,6 +130,7 @@ sh_test(
     args = COMMON_RUNTIME_ARGS + ["$(location :common_rust_test_binary)"],
     data = [
         ":common_rust_test_binary",
+        "@patchelf",
         "@sonic_swss_common//tools/bazel/runtime:test_runtime",
     ],
 )
@@ -140,6 +142,7 @@ sh_binary(
     args = COMMON_RUNTIME_ARGS + ["$(location :countersyncd)"],
     data = [
         ":countersyncd",
+        "@patchelf",
         "@sonic_swss_common//tools/bazel/runtime:test_runtime",
     ],
 )

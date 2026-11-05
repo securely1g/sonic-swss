@@ -132,6 +132,7 @@ jobs:
         run: >-
           bazel run --lockfile_mode=update
           --platforms=@sonic_build_infra//platforms:${{ matrix.platform }}
+          --host_platform=@sonic_build_infra//platforms:${{ matrix.platform }}
           //tools/bazel/buildifier:buildifier.check
 
       - name: Build and inspect production C++ programs
@@ -156,6 +157,7 @@ jobs:
             --config=release
             --lockfile_mode=update
             --platforms=@sonic_build_infra//platforms:${{ matrix.platform }}
+            --host_platform=@sonic_build_infra//platforms:${{ matrix.platform }}
             --jobs=4
           )
           bazel test "${options[@]}" --test_output=errors \
@@ -201,6 +203,7 @@ jobs:
         run: |
           bazel build --config=release --lockfile_mode=update \
             --platforms=@sonic_build_infra//platforms:${{ matrix.platform }} \
+            --host_platform=@sonic_build_infra//platforms:${{ matrix.platform }} \
             //dist:runtime_packages.json
           cp bazel-bin/dist/runtime_packages.json artifacts/packages/runtime_packages.json
 

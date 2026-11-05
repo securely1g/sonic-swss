@@ -23,7 +23,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.22-a12bc826d6f811a157db5c7c02a2fe033896cc14",
+    version = "0.0.26-51c838da6ff57295fde6e0bc3807841cb31a8568",
     repo_name = "sonic_build_infra",
 )
 
@@ -100,7 +100,7 @@ Distroless `0.9.4.sonic.13` retains include fragments for shared infrastructure
 APT imports; Protobuf headers and its runtime are now source-built.
 Run `bazel mod graph` and confirm `libnl3@3.7.0-sonic.2`,
 `rules_distroless@0.9.4.sonic.13`, `protobuf-legacy@3.21.12-sonic.1`, and
-`sonic-build-infra@0.0.22-a12bc826d6f811a157db5c7c02a2fe033896cc14` are selected,
+`sonic-build-infra@0.0.26-51c838da6ff57295fde6e0bc3807841cb31a8568` are selected,
 with `tar.bzl@0.10.5-sonic.1` and `sonic-dash-api@0.0.4-2a6e390b96a4fc17c191fa0da4b7ed1f40aed069`.
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
 RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
