@@ -52,6 +52,7 @@ def main():
         "--config=release",
         "--lockfile_mode=update",
         "--platforms=" + target_platform,
+        "--host_platform=" + target_platform,
         "--jobs=4",
         "--noshow_progress",
         "--color=no",

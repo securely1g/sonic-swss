@@ -286,6 +286,7 @@ def build(args: argparse.Namespace) -> None:
         "--config=release",
         "--lockfile_mode=update",
         f"--platforms={target_platform}",
+        f"--host_platform={target_platform}",
         "--noshow_progress",
         "--color=no",
         "--curses=no",

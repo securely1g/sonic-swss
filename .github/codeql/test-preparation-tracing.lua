@@ -25,10 +25,12 @@ for _, architecture in ipairs({"amd64", "arm64"}) do
     for _, spec in ipairs({
         {"external/sai+/bazel/prepare_deb_tools.py", "/external/sai+/bazel/sai_generator_tools", "--deb", "a.deb"},
         {"external/sonic-build-infra+/tools/build_tools/prepare_runtime.py", "/external/sonic-build-infra+/tools/build_tools/runtime_" .. architecture, "--tar", "content.tar.gz"},
+        {"external/sonic-build-infra+/tools/build_tools/prepare_runtime.py", "/external/sonic-build-infra+/tools/build_tools/configure_runtime_" .. architecture, "--tar", "data.tar.xz"},
     }) do
         local argv = {spec[1], "--out", "bazel-out/exec/bin" .. spec[2], "--architecture", architecture}
         if spec[3] == "--tar" then
-            for _, value in ipairs({"--profile", "documentation", "--launcher",
+            local profile = string.find(spec[2], "configure_runtime_") and "configure" or "documentation"
+            for _, value in ipairs({"--profile", profile, "--launcher",
                 "bazel-out/exec/bin/external/sonic-build-infra+/tools/build_tools/runtime_launcher"}) do
                 table.insert(argv, value)
             end
@@ -37,7 +39,7 @@ for _, architecture in ipairs({"amd64", "arm64"}) do
         table.insert(argv, spec[4])
         check(argv, true)
         if spec[3] == "--tar" then
-            for _, profile in ipairs({"configure", "kerberos", "foreign"}) do
+            for _, profile in ipairs({"kerberos", "foreign"}) do
                 local changed = copy(argv)
                 changed[7] = profile
                 check(changed, false)

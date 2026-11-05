@@ -136,6 +136,7 @@ def native_options(native: dict[str, Any], name: str, cpu: str) -> tuple[list[st
             pass
         else:
             raise ValueError(f"unclassified native link option for {name}: {record}")
+    link_options.extend(mappings.get("bazel_only_link_options", []))
     return compile_options, link_options, local_includes, libraries, include_repositories
 
 

@@ -103,7 +103,7 @@ class Fixture:
                             "-Wno-missing-include-dirs", "-g", "-Iapp", "-I.", "-Iapp",
                             "-Wdate-time", "-U_FORTIFY_SOURCE", "-D_FORTIFY_SOURCE=3",
                         ],
-                        "linkopts": ["-Wl,--no-undefined"],
+                        "linkopts": ["-Wl,--no-undefined"] + mappings.get("bazel_only_link_options", []),
                         "deps": [library["saimeta"], library["hiredis"], *system, "//lib:production_headers", "@rules_cc//:link_extra_lib"],
                     }),
                     self.rule("//lib:production_headers", "cc_library", {"hdrs": ["//lib:common.h"]}),
