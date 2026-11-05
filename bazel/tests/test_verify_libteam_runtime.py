@@ -36,8 +36,8 @@ class LibteamRuntimeTest(unittest.TestCase):
         actual = captured["libteam_consumer_runtime_libraries"]
         self.assertEqual(set(actual), expected)
         self.assertEqual(len(actual), len(expected))
-        self.assertTrue({"@libteam//:libteam", "@libteam//:libteamdctl",
-                         "@swss_debian//libjansson-dev:libjansson"} <= expected)
+        self.assertLessEqual({"@libteam//:libteam", "@libteam//:libteamdctl",
+                              "@swss_debian//libjansson-dev:libjansson"}, expected)
         # The former expression fails before compilation, just as Bazel's
         # label_list did in CodeQL job 127121481405.
         broken = build.replace("depset(TEAM_DEPS + TLM_TEAM_DEPS).to_list()",

@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import textwrap
 import unittest
-from unittest import mock
+import unittest.mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,7 +31,7 @@ class RegistrySelectionTest(unittest.TestCase):
                            "https://github.com/securely1g/sonic-bazel-registry.git",
                            "refs/heads/main"]:
                 return OBSERVED_MAIN + "\trefs/heads/main\n"
-            self.fail("Unexpected subprocess: " + repr(command))
+            raise AssertionError("Unexpected subprocess: " + repr(command))
 
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
@@ -39,7 +39,7 @@ class RegistrySelectionTest(unittest.TestCase):
             previous = Path.cwd()
             try:
                 os.chdir(workspace)
-                with mock.patch("subprocess.check_output", side_effect=git_output):
+                with unittest.mock.patch("subprocess.check_output", side_effect=git_output):
                     exec(compile(selection_script(workflow), workflow, "exec"), {})
                 evidence = workspace / "artifacts/validation"
                 return {
