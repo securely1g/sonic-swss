@@ -15,7 +15,7 @@ module(name = "sonic_swss_caller")
 
 bazel_dep(name = "rules_cc", version = "0.2.20")
 bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.13")
-bazel_dep(name = "sonic-swss", version = "0.0.0", repo_name = "sonic_swss")
+bazel_dep(name = "sonic-swss", version = "0.0.2", repo_name = "sonic_swss")
 bazel_dep(
     name = "sonic-swss-common",
     version = "0.0.2-cec18aae143f8b0338703ca0ab2683a60ef2465d",

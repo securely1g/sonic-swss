@@ -35,7 +35,22 @@ jobs:
     container:
       image: debian:trixie-20260918@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c
       options: --init
+      volumes:
+        - /usr/local/lib/android:/runner-unused/android
+        - /usr/share/dotnet:/runner-unused/dotnet
+        - /opt/ghc:/runner-unused/ghc
     steps:
+      - name: Allocate source-build space on this disposable runner
+        if: matrix.architecture == 'amd64'
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          df -h / "$GITHUB_WORKSPACE"
+          du -sh /runner-unused/android /runner-unused/dotnet /runner-unused/ghc
+          # These host SDKs are not inputs to the pinned Trixie build. Preserve
+          # all Bazel caches, the workspace, retained outputs and execution tools.
+          find /runner-unused/android /runner-unused/dotnet /runner-unused/ghc \
+            -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+          df -h / "$GITHUB_WORKSPACE"
       - name: Install host build tools
         run: |
           apt-get update
@@ -95,7 +110,7 @@ jobs:
           disk-cache: swss-production-${{ matrix.architecture }}
           cache-version: "8.5.1"
 
-      - name: Select and record the maintained registry revision
+      - name: Select and record the libteam review registry
         run: |
           python3 - <<'PYTHON'
           import json
@@ -107,19 +122,27 @@ jobs:
           advertised = subprocess.check_output(["git", "ls-remote",
               "https://github.com/securely1g/sonic-bazel-registry.git", ref], text=True).split()
           assert len(advertised) == 2 and advertised[1] == ref
-          revision = advertised[0]
-          assert re.fullmatch(r"[0-9a-f]{40}", revision)
-          registry = main
+          maintained_revision = advertised[0]
+          assert re.fullmatch(r"[0-9a-f]{40}", maintained_revision)
+          # Temporary Draft validation until registry #236 lands on main.
+          revision = "96f5d8e27ecba830e2cadeb857937f5c7fa46c51"
+          registry = main.rsplit("/", 1)[0] + "/" + revision
           configuration = Path(".bazelrc").read_text()
+          declared = subprocess.check_output(["git", "show", "HEAD:.bazelrc"], text=True)
+          assert configuration == declared, "unexpected working .bazelrc changes"
           assert configuration.count(main) == 1
           artifacts = Path("artifacts/validation").resolve()
           artifacts.mkdir(parents=True, exist_ok=True)
           (artifacts / "declared.bazelrc").write_text(configuration)
           effective = artifacts / "effective.bazelrc"
-          effective.write_text(configuration)
+          selected = configuration.replace(main, registry)
+          effective.write_text(selected)
+          Path(".bazelrc").write_text(selected)
           (artifacts / "registry-inputs.json").write_text(json.dumps({
               "declared_registry": main, "registry": registry,
-              "observed_revision": revision, "draft_validation": False,
+              "observed_revision": revision, "draft_validation": True,
+              "maintained_revision": maintained_revision,
+              "prerequisite": "https://github.com/securely1g/sonic-bazel-registry/pull/236",
           }, indent=2) + "\n")
           PYTHON
 

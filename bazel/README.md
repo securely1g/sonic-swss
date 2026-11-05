@@ -51,8 +51,17 @@ The uploaded inspection bundle contains executables, build/test logs, the
 resolved module graph and generated `MODULE.bazel.lock`, the native contract,
 the configured production graph and rule capture, the comparison result, and
 a JSON build receipt binding inputs and outputs to checksums and the checkout
-revision. CI resolves the SONiC registry `main` branch plus BCR; module versions,
-source archives and checksums remain pinned.
+revision. The committed default selects SONiC registry `main` plus BCR. While
+[registry #236](https://github.com/securely1g/sonic-bazel-registry/pull/236) is
+unmerged, Bazel and C++ CodeQL CI replace only that SONiC endpoint with the
+review catalog at `96f5d8e27ecba830e2cadeb857937f5c7fa46c51`, which adds
+`libteam@1.31.0.sonic.1`. CI requires an unchanged tracked `.bazelrc` before
+selection and retains both declared and effective configurations. The build
+receipt hashes the effective configuration; package manifests retain the
+working-tree change. Existing dependency versions and source checksums are unchanged
+apart from the new libteam dependency; the generated graph and lock establish
+any transitive version selection. Keep this consumer Draft until #236 lands,
+remove the two temporary CI selections, and validate with maintained `main`.
 
 The comparison does not inspect toolchain actions, response files, transitive
 provider paths, external header precedence, native link ordering or runtime
@@ -210,3 +219,32 @@ coverage.
 | [verify_rust_dependencies.py](verify_rust_dependencies.py) | Checks that countersyncd and its Common test use the owning library and one set of Serde targets. |
 | [verify_runtime_package.py](verify_runtime_package.py) | Validates installed SWSS files and matching C++/Rust debug symbols against the native contract. |
 | [ci_runtime_package.py](ci_runtime_package.py) | Builds and validates runtime/debug archives, including installed-orchagent Protobuf checks, and records package evidence. |
+
+## Source-owned libteam
+
+`teamsyncd` uses the registry's SONiC-patched `libteam` and `libteamdctl`
+providers. `tlm_teamd` uses only `libteamdctl` plus its existing Jansson
+provider; `teammgrd` has no libteam link dependency. The independent Automake
+contract comparison verifies these public provider mappings. Host
+`libteam-dev` is still used when configuring that independent Make baseline;
+it is not a Bazel compilation or runtime input.
+
+`//dist:libteam_runtime` and `//dist:libteam_debug` expose the two owner's TAR
+pairs for image consumers. They remain separate from `//dist:swss_pkg`.
+`//dist:runtime_packages.json` consumes library-only owner metadata, so it does
+not advertise `libteam-utils` or install the owner's tools. Image integration
+must install these exact runtime TARs and matching debug TARs alongside SWSS;
+this source PR does not change any Docker image.
+
+The existing package CI runs `@libteam//:consumer_test` with test-result reuse
+disabled, retains the four TARs and their hashes, verifies both ELF/debug
+pairs, and checks installed `teamsyncd` and `tlm_teamd` loader resolution
+against those TARs. It rejects host libteam fallback and checks that
+`teammgrd` has no libteam dependency. It uses the native Trixie loader and a
+temporary library search path, without starting the SWSS daemons. Full-image
+search paths, service startup and forwarding remain image-integration checks.
+
+No libFIB dependency is introduced: the earlier SWSS native-closure audit
+found no selected source, configured link argument or installed ELF edge to
+libFIB. Recheck that evidence when adding an actual FIB API consumer; FRR's
+independent libFIB producer and prerequisites remain separate.
