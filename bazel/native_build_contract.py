@@ -124,8 +124,8 @@ MODULE_BUILD_MAPPINGS = {
         "saimetadata": "@sonic_sairedis//meta:saimetadata_shared",
         "sairedis": "@sonic_sairedis//lib:sairedis_shared",
         "swsscommon": "@sonic_swss_common//:libswsscommon_shared",
-        "team": "@swss_debian//libteam-dev:libteam",
-        "teamdctl": "@swss_debian//libteam-dev:libteam",
+        "team": "@libteam//:libteam",
+        "teamdctl": "@libteam//:libteamdctl",
         "zmq": "@trixie//libzmq3-dev:libzmq3",
     },
 }

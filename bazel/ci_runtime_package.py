@@ -13,6 +13,7 @@ import tempfile
 from ci_production import ARCHITECTURES, ROOT, run, sha256
 from verify_runtime_package import read_contract, verify
 from verify_protobuf_runtime import build_and_validate
+from verify_libteam_runtime import build_and_validate as validate_libteam
 from verify_rust_dependencies import verify as verify_rust_dependencies
 
 
@@ -96,6 +97,9 @@ def main():
         report["protobuf_runtime"] = build_and_validate(
             ROOT, ["bazel"], options, run, args.architecture, binary,
             artifact_directory / "dependencies")
+    report["libteam_runtime"] = validate_libteam(
+        ROOT, ["bazel"], options, run, args.architecture, packages["runtime"],
+        artifact_directory / "libteam")
     (artifact_directory / "validation.json").write_text(json.dumps(report, indent=2) + "\n")
     graph = run(["bazel", "mod", "graph", "--lockfile_mode=update", "--output=json", "--verbose"],
                 capture=True)
