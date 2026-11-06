@@ -110,7 +110,10 @@ jobs:
           disk-cache: swss-production-${{ matrix.architecture }}
           cache-version: "8.5.1"
 
-      - name: Select and record the libteam review registry
+      - name: Prepare verified GitHub inputs and public download mirrors
+        run: bash bazel/ci_downloader.sh
+
+      - name: Record maintained registry inputs
         run: |
           python3 - <<'PYTHON'
           import json
@@ -124,9 +127,6 @@ jobs:
           assert len(advertised) == 2 and advertised[1] == ref
           maintained_revision = advertised[0]
           assert re.fullmatch(r"[0-9a-f]{40}", maintained_revision)
-          # Temporary Draft validation until registry #236 lands on main.
-          revision = "96f5d8e27ecba830e2cadeb857937f5c7fa46c51"
-          registry = main.rsplit("/", 1)[0] + "/" + revision
           configuration = Path(".bazelrc").read_text()
           declared = subprocess.check_output(["git", "show", "HEAD:.bazelrc"], text=True)
           assert configuration == declared, "unexpected working .bazelrc changes"
@@ -134,15 +134,9 @@ jobs:
           artifacts = Path("artifacts/validation").resolve()
           artifacts.mkdir(parents=True, exist_ok=True)
           (artifacts / "declared.bazelrc").write_text(configuration)
-          effective = artifacts / "effective.bazelrc"
-          selected = configuration.replace(main, registry)
-          effective.write_text(selected)
-          Path(".bazelrc").write_text(selected)
+          (artifacts / "effective.bazelrc").write_text(configuration)
           (artifacts / "registry-inputs.json").write_text(json.dumps({
-              "declared_registry": main, "registry": registry,
-              "observed_revision": revision, "draft_validation": True,
-              "maintained_revision": maintained_revision,
-              "prerequisite": "https://github.com/securely1g/sonic-bazel-registry/pull/236",
+              "registry": main, "observed_revision": maintained_revision,
           }, indent=2) + "\n")
           PYTHON
 

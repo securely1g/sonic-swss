@@ -1,4 +1,4 @@
-"""Exercise the temporary registry selection used by both SWSS CI workflows."""
+"""Verify that SWSS CI records the maintained registry without changing inputs."""
 
 import json
 import os
@@ -51,26 +51,18 @@ class RegistrySelectionTest(unittest.TestCase):
             finally:
                 os.chdir(previous)
 
-    def test_both_workflows_replace_only_the_declared_endpoint(self):
+    def test_both_workflows_preserve_the_declared_endpoint(self):
         declared = (ROOT / ".bazelrc").read_text()
         self.assertEqual(declared.count(MAIN), 1)
         for workflow in WORKFLOWS:
             with self.subTest(workflow=workflow):
                 result = self.run_selection(workflow, declared, declared)
                 receipt = result["receipt"]
-                self.assertRegex(receipt["observed_revision"], r"^[0-9a-f]{40}$")
-                selected = MAIN.rsplit("/", 1)[0] + "/" + receipt["observed_revision"]
-                self.assertEqual(receipt["registry"], selected)
-                self.assertEqual(receipt["declared_registry"], MAIN)
-                self.assertEqual(receipt["maintained_revision"], OBSERVED_MAIN)
-                self.assertTrue(receipt["draft_validation"])
-                self.assertRegex(receipt["prerequisite"],
-                                 r"^https://github.com/securely1g/sonic-bazel-registry/pull/[0-9]+$")
+                self.assertEqual(receipt, {"registry": MAIN,
+                                           "observed_revision": OBSERVED_MAIN})
                 self.assertEqual(result["declared"], declared)
-                self.assertEqual(result["effective"], declared.replace(MAIN, selected))
-                self.assertEqual(result["working"], result["effective"])
-                self.assertNotIn(MAIN, result["effective"])
-                self.assertEqual(result["effective"].count(selected), 1)
+                self.assertEqual(result["effective"], declared)
+                self.assertEqual(result["working"], declared)
 
     def test_unrelated_working_configuration_changes_are_rejected(self):
         declared = (ROOT / ".bazelrc").read_text()

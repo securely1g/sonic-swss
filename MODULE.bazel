@@ -27,7 +27,7 @@ bazel_dep(name = "sai", version = "1.18.0-sonic.1")
 bazel_dep(name = "tar.bzl", version = "0.10.5-sonic.1")
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.26-51c838da6ff57295fde6e0bc3807841cb31a8568",
+    version = "0.0.25-3ee15ec9b4d99d7f8eae3e324cead79b203b451e",
     repo_name = "sonic_build_infra",
 )
 bazel_dep(
@@ -56,6 +56,13 @@ bazel_dep(
 single_version_override(
     module_name = "tar.bzl",
     version = "0.10.5-sonic.1",
+)
+
+# Common and SAIRedis request an unlanded .26 snapshot. Use the compatible
+# landed rules without changing the shared APT inputs used by SWSS and libteam.
+single_version_override(
+    module_name = "sonic-build-infra",
+    version = "0.0.25-3ee15ec9b4d99d7f8eae3e324cead79b203b451e",
 )
 
 # Distroless imports rules_cc's private cc_import implementation. Releases
