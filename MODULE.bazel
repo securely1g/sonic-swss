@@ -1,7 +1,7 @@
 # Keep bazel_compatibility aligned with sonic-buildimage and sonic-swss-common.
 module(
     name = "sonic-swss",
-    version = "0.0.2",
+    version = "0.0.3",
     bazel_compatibility = [
         ">=8.5.1",
         "<=8.5.1",
@@ -37,8 +37,17 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-sairedis",
-    version = "0.0.4-ee19458a7d1b417317aaf34fe48969da7293d670",
+    version = "0.0.5-a1568983582654314c43aab421b32ab563ed860c",
     repo_name = "sonic_sairedis",
+)
+
+# Standalone SWSS builds use the same Sairedis source archive as the registry.
+# Bazel only applies this override in the root workspace.
+archive_override(
+    module_name = "sonic-sairedis",
+    integrity = "sha256-g5890UAQQj+2ahDH0R1W/Rj8NBY69sJzWxbNa3DfioI=",
+    strip_prefix = "sonic-sairedis-a1568983582654314c43aab421b32ab563ed860c",
+    urls = ["https://github.com/securely1g/sonic-sairedis/archive/a1568983582654314c43aab421b32ab563ed860c.tar.gz"],
 )
 bazel_dep(
     name = "sonic-rust-deps",
@@ -49,6 +58,13 @@ bazel_dep(
     name = "sonic-swss-common",
     version = "0.0.9-334389eae54afd1f4f5ee69f89c3a7ad2062ee61",
     repo_name = "sonic_swss_common",
+)
+
+# The Sairedis source still requests an unpublished Common revision.
+# Resolve its dependency with SWSS's declared, published Common version.
+single_version_override(
+    module_name = "sonic-swss-common",
+    version = "0.0.9-334389eae54afd1f4f5ee69f89c3a7ad2062ee61",
 )
 
 # Imported module overrides do not propagate to this root. Keep the patched
