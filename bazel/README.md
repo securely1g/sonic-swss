@@ -13,6 +13,34 @@ Run helper tests without configuring Automake or compiling SWSS:
 python3 -m unittest discover -s bazel/tests -v
 ```
 
+Before building locally, run the same input preparation used by native CI and
+C++ CodeQL from the repository root:
+
+```sh
+bash bazel/ci_downloader.sh
+```
+
+The script verifies the pinned shared GitHub reader, Cosmos manifest and public
+downloader configuration before running the reader. It prepares the complete
+five-file Cosmos set, including both ARM64 launcher names, with the original
+sizes and hashes. Only after verification succeeds does it publish the downloader
+configuration and `--distdir` in
+`artifacts/validation/swss-github-inputs.bazelrc`. The tracked `.bazelrc` imports
+these defaults before submodule configuration and
+`.bazelrc.user`, so an existing private downloader configuration takes precedence.
+The script leaves `.bazelrc.user` unchanged. Repeated preparation replaces the
+generated defaults instead of appending settings; failed preparation leaves them
+unchanged. Local inputs and caches live under `artifacts/swss-github-inputs`;
+CI uses `$RUNNER_TEMP/swss-github-inputs`. The bootstrap hashes and member receipts
+are retained under `artifacts/validation` in both cases. Repeated invocations
+verify and reuse matching cached files.
+
+Stop if preparation fails. Raw bootstrap URLs must return HTTP 200 without a
+redirect, and the shared reader checks every asset redirect and selected member.
+This supplies the declared Cosmos bytes; it does not disable all build network
+access. Bazel can fall back to declared URLs if a distdir input is later removed
+or changed, and unrelated downloads retain their existing configuration.
+
 To reproduce native CI, first [configure Automake and record its build contract](native-build-contract.md#configure-the-native-source-inventory)
 in a native Debian Trixie environment. Then run from the repository root:
 
@@ -51,17 +79,14 @@ The uploaded inspection bundle contains executables, build/test logs, the
 resolved module graph and generated `MODULE.bazel.lock`, the native contract,
 the configured production graph and rule capture, the comparison result, and
 a JSON build receipt binding inputs and outputs to checksums and the checkout
-revision. The committed default selects SONiC registry `main` plus BCR. While
-[registry #236](https://github.com/securely1g/sonic-bazel-registry/pull/236) is
-unmerged, Bazel and C++ CodeQL CI replace only that SONiC endpoint with the
-review catalog at `96f5d8e27ecba830e2cadeb857937f5c7fa46c51`, which adds
-`libteam@1.31.0.sonic.1`. CI requires an unchanged tracked `.bazelrc` before
-selection and retains both declared and effective configurations. The build
-receipt hashes the effective configuration; package manifests retain the
-working-tree change. Existing dependency versions and source checksums are unchanged
-apart from the new libteam dependency; the generated graph and lock establish
-any transitive version selection. Keep this consumer Draft until #236 lands,
-remove the two temporary CI selections, and validate with maintained `main`.
+revision. Local builds, Bazel CI and C++ CodeQL use SONiC registry `main` plus
+BCR, including the published `libteam@1.31.0.sonic.1` module. CI requires an
+unchanged tracked `.bazelrc` and records the observed registry revision alongside
+the declared and effective configurations, without rewriting the endpoint.
+The shared reader, manifest and public downloader configuration are pinned
+together in `bazel/ci_downloader.sh`, independently of the module catalog. The
+build receipt hashes the effective configuration. The generated module graph and
+lock record the selected direct and transitive dependency versions.
 
 The comparison does not inspect toolchain actions, response files, transitive
 provider paths, external header precedence, native link ordering or runtime
