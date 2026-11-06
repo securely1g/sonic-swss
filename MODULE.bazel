@@ -1,7 +1,7 @@
 # Keep bazel_compatibility aligned with sonic-buildimage and sonic-swss-common.
 module(
     name = "sonic-swss",
-    version = "0.0.2",
+    version = "0.0.3",
     bazel_compatibility = [
         ">=8.5.1",
         "<=8.5.1",
@@ -37,9 +37,19 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-sairedis",
-    version = "0.0.4-ee19458a7d1b417317aaf34fe48969da7293d670",
+    version = "0.0.5-ce101b2751e29205bcbea0f7a7b61e3062df7214",
     repo_name = "sonic_sairedis",
 )
+
+# Standalone SWSS builds pin the Sairedis source with the execution-platform
+# generator. Bazel only applies this override in the root workspace.
+archive_override(
+    module_name = "sonic-sairedis",
+    integrity = "sha256-2oyuscNT5KkxhkidQQo+uAILOxKwES6kMpmqL/xy/Ag=",
+    strip_prefix = "sonic-sairedis-ce101b2751e29205bcbea0f7a7b61e3062df7214",
+    urls = ["https://github.com/securely1g/sonic-sairedis/archive/ce101b2751e29205bcbea0f7a7b61e3062df7214.tar.gz"],
+)
+
 bazel_dep(
     name = "sonic-rust-deps",
     version = "0.0.2-127e89b9396824166caa6a300872398c6896bfec",
@@ -58,8 +68,8 @@ single_version_override(
     version = "0.10.5-sonic.1",
 )
 
-# Common and SAIRedis request an unlanded .26 snapshot. Use the compatible
-# landed rules without changing the shared APT inputs used by SWSS and libteam.
+# Common requests an unlanded .26 snapshot. Use the compatible landed rules
+# without changing the shared APT inputs used by SWSS and libteam.
 single_version_override(
     module_name = "sonic-build-infra",
     version = "0.0.25-3ee15ec9b4d99d7f8eae3e324cead79b203b451e",
