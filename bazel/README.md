@@ -88,6 +88,17 @@ together in `bazel/ci_downloader.sh`, independently of the module catalog. The
 build receipt hashes the effective configuration. The generated module graph and
 lock record the selected direct and transitive dependency versions.
 
+Standalone SWSS builds fetch the checksum-pinned [Sairedis source](https://github.com/securely1g/sonic-sairedis/pull/10)
+to run its SAI stub generator on the execution platform. They select the
+published Common version that SWSS declares because the Sairedis source
+requests an older unpublished revision. Bazel applies both the archive override
+and the Common version override only in the root workspace. Downstream builds
+that import SWSS resolve these modules through their own root configuration.
+
+After Sairedis #10 lands, refresh the module version suffix, archive URL, strip
+prefix and integrity together to the source commit that landed on Sairedis
+`master`.
+
 The comparison does not inspect toolchain actions, response files, transitive
 provider paths, external header precedence, native link ordering or runtime
 equivalence. DEBUG, ASAN, GCOV, Rust and Cargo settings remain outside the
