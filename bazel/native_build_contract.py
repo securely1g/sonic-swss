@@ -65,7 +65,6 @@ MODULE_BUILD_MAPPINGS = {
         "-Werror=format-security": ["-Werror"],
     },
     "bazel_only_compile_options": ["-Wno-missing-include-dirs"],
-    "bazel_only_link_options": ["-Wl,--allow-shlib-undefined"],
     # Recorded under the reviewed infra boundary, not inspected in cquery.
     "reviewed_toolchain_additional_link_options": ["-Wl,-z,now", "-Wl,--as-needed"],
     # Source-reviewed link search paths; <sysroot> denotes the declared input.
@@ -124,8 +123,8 @@ MODULE_BUILD_MAPPINGS = {
         "saimetadata": "@sonic_sairedis//meta:saimetadata_shared",
         "sairedis": "@sonic_sairedis//lib:sairedis_shared",
         "swsscommon": "@sonic_swss_common//:libswsscommon_shared",
-        "team": "@swss_debian//libteam-dev:libteam",
-        "teamdctl": "@swss_debian//libteam-dev:libteam",
+        "team": "@libteam//:libteam",
+        "teamdctl": "@libteam//:libteamdctl",
         "zmq": "@trixie//libzmq3-dev:libzmq3",
     },
 }

@@ -6,6 +6,10 @@ common --noincompatible_disallow_empty_glob
 common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main
 common --registry=https://bcr.bazel.build/
 
+# Optional public download defaults prepared by bazel/ci_downloader.sh.
+# Keep explicit submodule and user configuration below these defaults.
+try-import %workspace%/artifacts/validation/swss-github-inputs.bazelrc
+
 # sonic-buildimage supplies checkout overrides when this repository is a submodule.
 try-import %workspace%/../../tools/bazel/submodule-config.bazelrc
 

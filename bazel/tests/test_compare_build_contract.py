@@ -153,6 +153,20 @@ class BuildContractTest(unittest.TestCase):
         self.assertEqual(result[0]["local_include_directories"], ["app", ".", "app"])
         self.assertIn("@sonic_sairedis//meta:saimetadata_shared", result[0]["required_dependency_labels"])
 
+    def test_libteam_and_teamdctl_require_their_separate_source_providers(self):
+        fixture = Fixture()
+        for library in ("team", "teamdctl"):
+            label = fixture.native["mappings"]["library_providers"][library]
+            fixture.native["link_profiles"]["example"].append({"argument": "-l" + library, "classification": "library"})
+            fixture.attribute("//app:example", "deps").append(fixture.canonical(label))
+            fixture.evidence["cquery"]["results"].append(fixture.rule(label, "cc_library"))
+        required = fixture.check()[0]["required_dependency_labels"]
+        self.assertIn("@libteam//:libteam", required)
+        self.assertIn("@libteam//:libteamdctl", required)
+        fixture.attribute("//app:example", "deps").remove(fixture.canonical("@libteam//:libteamdctl"))
+        with self.assertRaisesRegex(ValueError, "mapped dependencies are not reachable"):
+            fixture.check()
+
     def test_detects_native_and_bazel_option_drift(self):
         for side, kind in (("native", "compile"), ("bazel", "compile"), ("native", "link"), ("bazel", "link")):
             with self.subTest(side=side, kind=kind):

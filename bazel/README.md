@@ -13,6 +13,34 @@ Run helper tests without configuring Automake or compiling SWSS:
 python3 -m unittest discover -s bazel/tests -v
 ```
 
+Before building locally, run the same input preparation used by native CI and
+C++ CodeQL from the repository root:
+
+```sh
+bash bazel/ci_downloader.sh
+```
+
+The script verifies the pinned shared GitHub reader, Cosmos manifest and public
+downloader configuration before running the reader. It prepares the complete
+five-file Cosmos set, including both ARM64 launcher names, with the original
+sizes and hashes. Only after verification succeeds does it publish the downloader
+configuration and `--distdir` in
+`artifacts/validation/swss-github-inputs.bazelrc`. The tracked `.bazelrc` imports
+these defaults before submodule configuration and
+`.bazelrc.user`, so an existing private downloader configuration takes precedence.
+The script leaves `.bazelrc.user` unchanged. Repeated preparation replaces the
+generated defaults instead of appending settings; failed preparation leaves them
+unchanged. Local inputs and caches live under `artifacts/swss-github-inputs`;
+CI uses `$RUNNER_TEMP/swss-github-inputs`. The bootstrap hashes and member receipts
+are retained under `artifacts/validation` in both cases. Repeated invocations
+verify and reuse matching cached files.
+
+Stop if preparation fails. Raw bootstrap URLs must return HTTP 200 without a
+redirect, and the shared reader checks every asset redirect and selected member.
+This supplies the declared Cosmos bytes; it does not disable all build network
+access. Bazel can fall back to declared URLs if a distdir input is later removed
+or changed, and unrelated downloads retain their existing configuration.
+
 To reproduce native CI, first [configure Automake and record its build contract](native-build-contract.md#configure-the-native-source-inventory)
 in a native Debian Trixie environment. Then run from the repository root:
 
@@ -51,8 +79,14 @@ The uploaded inspection bundle contains executables, build/test logs, the
 resolved module graph and generated `MODULE.bazel.lock`, the native contract,
 the configured production graph and rule capture, the comparison result, and
 a JSON build receipt binding inputs and outputs to checksums and the checkout
-revision. CI resolves the SONiC registry `main` branch plus BCR; module versions,
-source archives and checksums remain pinned.
+revision. Local builds, Bazel CI and C++ CodeQL use SONiC registry `main` plus
+BCR, including the published `libteam@1.31.0.sonic.1` module. CI requires an
+unchanged tracked `.bazelrc` and records the observed registry revision alongside
+the declared and effective configurations, without rewriting the endpoint.
+The shared reader, manifest and public downloader configuration are pinned
+together in `bazel/ci_downloader.sh`, independently of the module catalog. The
+build receipt hashes the effective configuration. The generated module graph and
+lock record the selected direct and transitive dependency versions.
 
 The comparison does not inspect toolchain actions, response files, transitive
 provider paths, external header precedence, native link ordering or runtime
@@ -210,3 +244,32 @@ coverage.
 | [verify_rust_dependencies.py](verify_rust_dependencies.py) | Checks that countersyncd and its Common test use the owning library and one set of Serde targets. |
 | [verify_runtime_package.py](verify_runtime_package.py) | Validates installed SWSS files and matching C++/Rust debug symbols against the native contract. |
 | [ci_runtime_package.py](ci_runtime_package.py) | Builds and validates runtime/debug archives, including installed-orchagent Protobuf checks, and records package evidence. |
+
+## Source-owned libteam
+
+`teamsyncd` uses the registry's SONiC-patched `libteam` and `libteamdctl`
+providers. `tlm_teamd` uses only `libteamdctl` plus its existing Jansson
+provider; `teammgrd` has no libteam link dependency. The independent Automake
+contract comparison verifies these public provider mappings. Host
+`libteam-dev` is still used when configuring that independent Make baseline;
+it is not a Bazel compilation or runtime input.
+
+`//dist:libteam_runtime` and `//dist:libteam_debug` expose the two owner's TAR
+pairs for image consumers. They remain separate from `//dist:swss_pkg`.
+`//dist:runtime_packages.json` consumes library-only owner metadata, so it does
+not advertise `libteam-utils` or install the owner's tools. Image integration
+must install these exact runtime TARs and matching debug TARs alongside SWSS;
+this source PR does not change any Docker image.
+
+The existing package CI runs `@libteam//:consumer_test` with test-result reuse
+disabled, retains the four TARs and their hashes, verifies both ELF/debug
+pairs, and checks installed `teamsyncd` and `tlm_teamd` loader resolution
+against those TARs. It rejects host libteam fallback and checks that
+`teammgrd` has no libteam dependency. It uses the native Trixie loader and a
+temporary library search path, without starting the SWSS daemons. Full-image
+search paths, service startup and forwarding remain image-integration checks.
+
+No libFIB dependency is introduced: the earlier SWSS native-closure audit
+found no selected source, configured link argument or installed ELF edge to
+libFIB. Recheck that evidence when adding an actual FIB API consumer; FRR's
+independent libFIB producer and prerequisites remain separate.

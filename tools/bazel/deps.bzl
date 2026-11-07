@@ -28,7 +28,13 @@ ORCHAGENT_DEPS = CFGMGR_DEPS + [
     "@swss_debian//libyaml-cpp-dev:libyaml-cpp",
 ]
 
-# rules_distroless exposes libteam and libteamdctl through one public target.
-TEAM_DEPS = SWSS_DEPS + ["@swss_debian//libteam-dev:libteam"]
+# SONiC-patched libteam owns the headers, shared libraries and runtime TARs.
+TEAM_DEPS = SWSS_DEPS + [
+    "@libteam//:libteam",
+    "@libteam//:libteamdctl",
+]
 
-TLM_TEAM_DEPS = TEAM_DEPS + ["@swss_debian//libjansson-dev:libjansson"]
+TLM_TEAM_DEPS = SWSS_DEPS + [
+    "@libteam//:libteamdctl",
+    "@swss_debian//libjansson-dev:libjansson",
+]
