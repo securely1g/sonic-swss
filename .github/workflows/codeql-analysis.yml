@@ -51,7 +51,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            binutils build-essential ca-certificates git lua5.4 python3 tar
+            binutils build-essential ca-certificates curl git lua5.4 python3 tar
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -56,7 +56,7 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends \
             autoconf autoconf-archive automake autotools-dev binutils \
-            build-essential ca-certificates debhelper gdb git libhiredis-dev \
+            build-essential ca-certificates curl debhelper gdb git libhiredis-dev \
             libjansson-dev libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev \
             libnl-route-3-dev libteam-dev libtool libxml2 pkg-config python3 tar
 
