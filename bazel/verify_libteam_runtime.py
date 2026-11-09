@@ -25,16 +25,35 @@ EXPECTED = {
     "tlm_teamd": {"libteamdctl.so.0"},
     "teammgrd": set(),
 }
+EXPECTED_NEEDED_NETLINK = {
+    "teamsyncd": {"libnl-route-3.so.200"},
+    "tlm_teamd": set(),
+    "teammgrd": {"libnl-3.so.200", "libnl-route-3.so.200"},
+}
+EXPECTED_LOADED_NETLINK = {
+    "teamsyncd": {"libnl-3.so.200", "libnl-route-3.so.200"},
+    "tlm_teamd": {"libnl-3.so.200", "libnl-route-3.so.200"},
+    "teammgrd": set(),
+}
 
 
 def check_needed(program, output):
     needed = set(re.findall(r"Shared library: \[([^]]+)\]", output))
     team = {name for name in needed if name.startswith("libteam")}
     require(team == EXPECTED[program], "Unexpected libteam dependencies for " + program + ": " + repr(sorted(team)))
+    netlink = {name for name in needed if name.startswith("libnl-")}
+    require(netlink == EXPECTED_NEEDED_NETLINK[program],
+            "Unexpected libnl dependencies for " + program + ": " + repr(sorted(netlink)))
     return sorted(needed)
 
 
-def check_loaded(program, output, libraries):
+def check_no_defined_netlink(program, output):
+    defined = sorted(set(re.findall(r"\b(?:nl|rtnl)_[A-Za-z0-9_]+", output)))
+    require(not defined,
+            "Consumer embeds static libnl symbols for " + program + ": " + repr(defined[:10]))
+
+
+def check_loaded(program, output, libraries, declared=None):
     require("not found" not in output, "Unresolved shared dependency for " + program)
     loaded = re.findall(r"(libteam[^\s]*) => (\S+)", output)
     require(len(loaded) == len(EXPECTED[program]) and
@@ -43,6 +62,15 @@ def check_loaded(program, output, libraries):
     for name, path in loaded:
         require(Path(path).resolve() == libraries[name].resolve(),
                 program + " loaded libteam outside the installed owner TAR: " + path)
+    if EXPECTED_LOADED_NETLINK[program]:
+        loaded_netlink = re.findall(r"(libnl-[^\s]*) => (\S+)", output)
+        netlink_paths = {name: path for name, path in loaded_netlink}
+        require(EXPECTED_LOADED_NETLINK[program] <= set(netlink_paths),
+                "Missing loaded libnl libraries for " + program + ": " + repr(sorted(netlink_paths)))
+        if declared is not None:
+            for name in EXPECTED_LOADED_NETLINK[program]:
+                require(Path(netlink_paths[name]).resolve() == (declared / name).resolve(),
+                        program + " loaded libnl outside the declared closure: " + netlink_paths[name])
 
 
 def validate(execution_root, runtime, libraries, archives, architecture):
@@ -89,6 +117,7 @@ def validate(execution_root, runtime, libraries, archives, architecture):
                 binary.write_bytes(archive.extractfile(members[0]).read())
                 binary.chmod(0o755)
                 needed = check_needed(program, command("readelf", "-d", str(binary)))
+                check_no_defined_netlink(program, command("nm", "-D", "--defined-only", str(binary)))
                 record = {"sha256": sha(binary), "needed": needed}
                 # teammgrd has no libteam edge; its independent cfgmgr closure
                 # is covered by the existing production/package validation.
@@ -97,7 +126,7 @@ def validate(execution_root, runtime, libraries, archives, architecture):
                     require(match and Path(match[1]).is_file(), "Missing native ELF interpreter")
                     loader = command(match[1], "--inhibit-rpath", "", "--library-path",
                                      environment["LD_LIBRARY_PATH"], "--list", str(binary), env=environment)
-                    check_loaded(program, loader, installed)
+                    check_loaded(program, loader, installed, declared)
                     record["loader"] = loader.replace(str(root), "<stage>")
                 programs[program] = record
     return {"architecture": architecture, "programs": programs, "dependency_debug_pairs": pairs,
