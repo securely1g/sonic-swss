@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import copy
 import json
 from pathlib import Path
@@ -269,6 +270,20 @@ class BuildContractTest(unittest.TestCase):
                 fixture.native["compile_profiles"]["example"] = [record for record in fixture.native["compile_profiles"]["example"] if record["classification"] != "target_toolchain"]
                 with self.assertRaisesRegex(ValueError, "unclassified native link option"):
                     compare.native_options(fixture.native, "example", other_cpu)
+
+    def test_reviewed_infra_matches_root_toolchain_selection(self):
+        reviewed = compare.MODULE_BUILD_MAPPINGS["reviewed_infra"]
+        module = (BAZEL_DIRECTORY.parent / "MODULE.bazel").read_text()
+        pins = {}
+        for node in ast.walk(ast.parse(module)):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+                continue
+            if node.func.id not in ("bazel_dep", "single_version_override"):
+                continue
+            args = {kw.arg: kw.value.value for kw in node.keywords if isinstance(kw.value, ast.Constant)}
+            if args.get("module_name", args.get("name")) == reviewed["module"]:
+                pins[node.func.id] = args["version"]
+        self.assertEqual(pins.get("single_version_override", pins.get("bazel_dep")), reviewed["version"])
 
     def test_checks_revision_build_definitions_architecture_and_reviewed_infra(self):
         fixture = Fixture()
