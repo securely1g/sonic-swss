@@ -51,7 +51,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            binutils build-essential ca-certificates git lua5.4 python3 tar
+            binutils build-essential ca-certificates curl git lua5.4 python3 tar
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,7 +84,10 @@ jobs:
           repository-cache: true
           cache-version: "8.5.1"
 
-      - name: Select and record the maintained registry revision
+      - name: Prepare verified GitHub inputs and public download mirrors
+        run: bash bazel/ci_downloader.sh
+
+      - name: Record maintained registry inputs
         run: |
           python3 - <<'PYTHON'
           import json
@@ -96,19 +99,18 @@ jobs:
           advertised = subprocess.check_output(["git", "ls-remote",
               "https://github.com/securely1g/sonic-bazel-registry.git", ref], text=True).split()
           assert len(advertised) == 2 and advertised[1] == ref
-          revision = advertised[0]
-          assert re.fullmatch(r"[0-9a-f]{40}", revision)
-          registry = main
+          maintained_revision = advertised[0]
+          assert re.fullmatch(r"[0-9a-f]{40}", maintained_revision)
           configuration = Path(".bazelrc").read_text()
+          declared = subprocess.check_output(["git", "show", "HEAD:.bazelrc"], text=True)
+          assert configuration == declared, "unexpected working .bazelrc changes"
           assert configuration.count(main) == 1
           artifacts = Path("artifacts/validation").resolve()
           artifacts.mkdir(parents=True, exist_ok=True)
           (artifacts / "declared.bazelrc").write_text(configuration)
-          effective = artifacts / "effective.bazelrc"
-          effective.write_text(configuration)
+          (artifacts / "effective.bazelrc").write_text(configuration)
           (artifacts / "registry-inputs.json").write_text(json.dumps({
-              "declared_registry": main, "registry": registry,
-              "observed_revision": revision, "draft_validation": False,
+              "registry": main, "observed_revision": maintained_revision,
           }, indent=2) + "\n")
           PYTHON
 

@@ -136,14 +136,13 @@ runtime_packages(
             "libjemalloc2",
             "libyaml-cpp0.8",
             "libjansson4",
-            "libteam5",
-            "libteamdctl0",
         ]
     },
     changelog = "//:debian/changelog",
     control = "//:debian/control",
     debian_files = {"compat": "//:debian/compat"},
     dependencies = [
+        "@libteam//:library_runtime_packages.json",
         "@sonic_swss_common//:runtime_packages.json",
         "@sonic_sairedis//:library_runtime_packages.json",
         "@sonic_dash_api//:runtime_packages.json",
@@ -157,4 +156,22 @@ runtime_packages(
             "usr/bin/countersyncd",
         ],
     },
+)
+
+# Image consumers install these owner TARs alongside swss_pkg. Keep them
+# separate from SWSS's payload, including the matching detached symbols.
+filegroup(
+    name = "libteam_runtime",
+    srcs = [
+        "@libteam//:libteam_runtime",
+        "@libteam//:libteamdctl_runtime",
+    ],
+)
+
+filegroup(
+    name = "libteam_debug",
+    srcs = [
+        "@libteam//:libteam_runtime.debug_symbols",
+        "@libteam//:libteamdctl_runtime.debug_symbols",
+    ],
 )
