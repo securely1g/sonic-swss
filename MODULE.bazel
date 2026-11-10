@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-sairedis",
-    version = "0.0.5-ce101b2751e29205bcbea0f7a7b61e3062df7214",
+    version = "0.0.5-33443ea1666a23812365d03fb959066ee84c9aa0",
     repo_name = "sonic_sairedis",
 )
 
@@ -45,9 +45,9 @@ bazel_dep(
 # generator. Bazel only applies this override in the root workspace.
 archive_override(
     module_name = "sonic-sairedis",
-    integrity = "sha256-2oyuscNT5KkxhkidQQo+uAILOxKwES6kMpmqL/xy/Ag=",
-    strip_prefix = "sonic-sairedis-ce101b2751e29205bcbea0f7a7b61e3062df7214",
-    urls = ["https://github.com/securely1g/sonic-sairedis/archive/ce101b2751e29205bcbea0f7a7b61e3062df7214.tar.gz"],
+    integrity = "sha256-MWab8sFuxYXsn7tSzGsTaF8cqo43U9+D+e87A29CG9E=",
+    strip_prefix = "sonic-sairedis-33443ea1666a23812365d03fb959066ee84c9aa0",
+    urls = ["https://github.com/securely1g/sonic-sairedis/archive/33443ea1666a23812365d03fb959066ee84c9aa0.tar.gz"],
 )
 
 bazel_dep(
