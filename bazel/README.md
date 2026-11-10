@@ -88,6 +88,12 @@ together in `bazel/ci_downloader.sh`, independently of the module catalog. The
 build receipt hashes the effective configuration. The generated module graph and
 lock record the selected direct and transitive dependency versions.
 
+Standalone SWSS builds use the checksum-pinned Sairedis source archive in
+[MODULE.bazel](../MODULE.bazel) so its SAI stub generator runs on the execution
+platform. Bazel applies this archive override only when SWSS is the root
+workspace. Downstream builds that import SWSS resolve Sairedis through their own
+root configuration.
+
 The comparison does not inspect toolchain actions, response files, transitive
 provider paths, external header precedence, native link ordering or runtime
 equivalence. DEBUG, ASAN, GCOV, Rust and Cargo settings remain outside the
