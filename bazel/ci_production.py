@@ -294,7 +294,14 @@ def build(args: argparse.Namespace) -> None:
     bazel = [args.bazel]
     fresh_output_base = args.mode in ("clean", "codeql")
     if fresh_output_base:
-        output_base = tempfile.mkdtemp(prefix=f"swss-{args.mode}-bazel-", dir=os.environ.get("RUNNER_TEMP"))
+        output_base = os.environ.get("SWSS_CODEQL_OUTPUT_BASE") if args.mode == "codeql" else None
+        if output_base:
+            # The workflow only fetches the locked inspection tools before tracing.
+            prepared = Path(output_base)
+            if (prepared / "action_cache").exists() or any((prepared / "execroot").glob("*/bazel-out")):
+                raise ValueError("CodeQL requires an output base without previous build actions")
+        else:
+            output_base = tempfile.mkdtemp(prefix=f"swss-{args.mode}-bazel-", dir=os.environ.get("RUNNER_TEMP"))
         bazel += [f"--output_base={output_base}", "--batch"]
         options += [
             "--nouse_action_cache",
