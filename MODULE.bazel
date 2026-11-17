@@ -16,18 +16,18 @@ bazel_dep(name = "libnl3", version = "3.7.0.sonic.7")
 bazel_dep(name = "libteam", version = "1.31.0.sonic.1")
 bazel_dep(name = "patchelf", version = "0.18.0.bcr.1")
 bazel_dep(name = "platforms", version = "1.1.0")
-bazel_dep(name = "protobuf-legacy", version = "3.21.12-sonic.1", repo_name = "protobuf_legacy")
+bazel_dep(name = "protobuf-legacy", version = "3.21.12.sonic.2", repo_name = "protobuf_legacy")
 bazel_dep(name = "rules_cc", version = "0.2.20")
-bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.16")
+bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.20")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
-bazel_dep(name = "rules_python", version = "1.7.0")
+bazel_dep(name = "rules_python", version = "1.9.0.sonic.1")
 bazel_dep(name = "rules_rs", version = "0.1.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "sai", version = "1.18.0-sonic.1")
-bazel_dep(name = "tar.bzl", version = "0.10.5-sonic.1")
+bazel_dep(name = "tar.bzl", version = "0.10.5.sonic.2")
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.25-3ee15ec9b4d99d7f8eae3e324cead79b203b451e",
+    version = "0.0.37-316e298e77ab5cfa69af9b0c05ec24d5d94bbe1e",
     repo_name = "sonic_build_infra",
 )
 bazel_dep(
@@ -41,18 +41,9 @@ bazel_dep(
     repo_name = "sonic_sairedis",
 )
 
-# Standalone SWSS builds pin the Sairedis source with the execution-platform
-# generator. Bazel only applies this override in the root workspace.
-archive_override(
-    module_name = "sonic-sairedis",
-    integrity = "sha256-MWab8sFuxYXsn7tSzGsTaF8cqo43U9+D+e87A29CG9E=",
-    strip_prefix = "sonic-sairedis-33443ea1666a23812365d03fb959066ee84c9aa0",
-    urls = ["https://github.com/securely1g/sonic-sairedis/archive/33443ea1666a23812365d03fb959066ee84c9aa0.tar.gz"],
-)
-
 bazel_dep(
     name = "sonic-rust-deps",
-    version = "0.0.2-127e89b9396824166caa6a300872398c6896bfec",
+    version = "0.0.5-dd364f207d7b320a5af12c81da6d10893f292205",
     repo_name = "sonic_rust_deps",
 )
 bazel_dep(
@@ -65,14 +56,13 @@ bazel_dep(
 # tar implementation required by Common and shared deployment rules.
 single_version_override(
     module_name = "tar.bzl",
-    version = "0.10.5-sonic.1",
+    version = "0.10.5.sonic.2",
 )
 
-# Common requests an unlanded .26 snapshot. Use the compatible landed rules
-# without changing the shared APT inputs used by SWSS and libteam.
+# Keep SWSS and its dependencies on the same published infrastructure release.
 single_version_override(
     module_name = "sonic-build-infra",
-    version = "0.0.25-3ee15ec9b4d99d7f8eae3e324cead79b203b451e",
+    version = "0.0.37-316e298e77ab5cfa69af9b0c05ec24d5d94bbe1e",
 )
 
 # Distroless imports rules_cc's private cc_import implementation. Releases
