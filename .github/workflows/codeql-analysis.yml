@@ -78,6 +78,7 @@ jobs:
         run: |
           base="$(mktemp -d "$RUNNER_TEMP/swss-codeql-bazel-XXXXXXXX")"
           bazel --batch --output_base="$base" fetch \
+            --repo=@@rules_distroless++apt+apt_native_tools \
             --repo=@@rules_distroless++_repo_rules+distroless_native_tools \
             --repo=@@protobuf-legacy++_repo_rules2+protobuf_source
           echo "SWSS_CODEQL_OUTPUT_BASE=$base" >> "$GITHUB_ENV"

@@ -27,7 +27,7 @@ bazel_dep(name = "sai", version = "1.18.0.sonic.2")
 bazel_dep(name = "tar.bzl", version = "0.10.5.sonic.2")
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.42-da5f4c8d370f501572f435ade330ec209c9c0203",
+    version = "0.0.44-35726399908a3beb947174e9359f902077928289",
     repo_name = "sonic_build_infra",
 )
 bazel_dep(
@@ -61,7 +61,7 @@ single_version_override(
 # Keep SWSS and its dependencies on the same published infrastructure release.
 single_version_override(
     module_name = "sonic-build-infra",
-    version = "0.0.42-da5f4c8d370f501572f435ade330ec209c9c0203",
+    version = "0.0.44-35726399908a3beb947174e9359f902077928289",
 )
 
 # Distroless imports rules_cc's private cc_import implementation. Releases
