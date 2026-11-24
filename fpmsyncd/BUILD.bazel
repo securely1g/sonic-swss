@@ -31,6 +31,8 @@ swss_cc_binary(
         "fpmsyncd.cpp",
         "fpmlink.cpp",
         "routesync.cpp",
+        "routesendcoalescer.cpp",
+        "macsync.cpp",
         "//warmrestart:warmRestartHelper.cpp",
         "//lib:orch_zmq_config.cpp",
     ],
@@ -39,5 +41,6 @@ swss_cc_binary(
         ":production_headers",
         "//lib:production_headers",
         "//warmrestart:production_headers",
+        "@swss_debian//libjemalloc-dev:libjemalloc",
     ],
 )

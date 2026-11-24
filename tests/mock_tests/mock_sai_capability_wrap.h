@@ -26,12 +26,53 @@ extern "C"
  *   sai_query_attribute_capability              (hftelorch.cpp, and icmporch.cpp
  *                                                via the shared SaiOffloadSession
  *                                                selective-counter capability check)
+ *   sai_object_type_get_availability            (mirrororch.cpp)
  *
  * sai_query_attribute_capability is a single wrapped symbol shared by both
  * orchs, so its __wrap_ dispatches by object_type: ICMP echo session queries are
  * driven by the ICMP hook state, all other object types by the HFTel hook state.
  * Each orch therefore drives only its own namespace below.
  */
+
+#include <functional>
+#include <utility>
+
+#include <saitypes.h>
+#include <saiobject.h>
+
+/**
+ * Generic per-attribute capability override for the single shared
+ * sai_query_attribute_capability() --wrap. Return true to handle the query
+ * (filling *cap and *status); return false to fall through to the default
+ * per-orch behaviour. Usable by any mock test (e.g. the ACL match-field gate).
+ */
+namespace sai_cap_ut
+{
+    using AttrCapabilityOverride = std::function<bool(
+        sai_object_type_t object_type,
+        sai_attr_id_t attr_id,
+        sai_attr_capability_t *cap,
+        sai_status_t *status)>;
+
+    void setAttrCapabilityOverride(AttrCapabilityOverride fn);
+    void clearAttrCapabilityOverride();
+
+    /** RAII: clears the override on scope exit. */
+    struct AttrCapabilityOverrideGuard
+    {
+        explicit AttrCapabilityOverrideGuard(AttrCapabilityOverride fn)
+        {
+            setAttrCapabilityOverride(std::move(fn));
+        }
+        ~AttrCapabilityOverrideGuard()
+        {
+            clearAttrCapabilityOverride();
+        }
+
+        AttrCapabilityOverrideGuard(const AttrCapabilityOverrideGuard &) = delete;
+        AttrCapabilityOverrideGuard &operator=(const AttrCapabilityOverrideGuard &) = delete;
+    };
+}
 
 /**
  * Test hooks for the SAI calls on the ICMP echo session stats count mode path
@@ -81,6 +122,22 @@ namespace hftelorch_sai_wrap_ut
     void setSaiHookSwitchNotifySetNotImplemented();
     void setSaiHookAllSupported();
 
+    // Pin whether SAI_OBJECT_TYPE_TAM_TEL_TYPE's SWITCH_ENABLE_*_STATS attributes
+    // report create_implemented. All other object types behave as AllSupported so
+    // isSupportedHFTel reaches the mode/category probe. Combine with a
+    // setSaiHookModeAdvertised* call to exercise HFTelOrch::querySupportedTelTypeModes'
+    // per-category downgrade, which applies to single_supported and mixed_supported
+    // alike.
+    void setSaiHookMixedEnableAttrsAllUnsupported();
+    void setSaiHookMixedEnableAttrsMmuUnsupported();
+
+    // Pin what SAI_TAM_TEL_TYPE_ATTR_MODE enum-values capability advertises.
+    void setSaiHookModeAdvertisedSingleOnly();
+    void setSaiHookModeAdvertisedMixedOnly();
+    void setSaiHookModeAdvertisedBoth();
+    void setSaiHookModeAdvertisedNeither();
+    void setSaiHookModeQueryNotSupported();
+
     /** RAII: restores the HFTel hook to None on scope exit. */
     struct HFTelSaiHookGuard
     {
@@ -118,5 +175,31 @@ namespace sai_enum_cap_ut
 
         EnumValuesCapabilityOverrideGuard(const EnumValuesCapabilityOverrideGuard&) = delete;
         EnumValuesCapabilityOverrideGuard& operator=(const EnumValuesCapabilityOverrideGuard&) = delete;
+    };
+}
+
+/*
+ * Generic, test-settable override for the shared --wrap of
+ * sai_object_type_get_availability. Return true to handle the query (filling
+ * *count and *status); return false to forward it to the real implementation.
+ */
+namespace sai_availability_ut
+{
+    using ObjectTypeAvailabilityOverride = std::function<bool(
+        sai_object_type_t object_type,
+        uint64_t *count,
+        sai_status_t *status)>;
+
+    void setObjectTypeAvailabilityOverride(ObjectTypeAvailabilityOverride fn);
+    void clearObjectTypeAvailabilityOverride();
+
+    /** RAII: clears the override on scope exit. */
+    struct ObjectTypeAvailabilityOverrideGuard
+    {
+        explicit ObjectTypeAvailabilityOverrideGuard(ObjectTypeAvailabilityOverride fn);
+        ~ObjectTypeAvailabilityOverrideGuard();
+
+        ObjectTypeAvailabilityOverrideGuard(const ObjectTypeAvailabilityOverrideGuard&) = delete;
+        ObjectTypeAvailabilityOverrideGuard& operator=(const ObjectTypeAvailabilityOverrideGuard&) = delete;
     };
 }

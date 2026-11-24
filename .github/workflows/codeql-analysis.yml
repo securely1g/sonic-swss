@@ -104,10 +104,10 @@ jobs:
           from pathlib import Path
           import re
           import subprocess
-          main = "https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main"
+          main = "https://raw.githubusercontent.com/sonic-net/sonic-bazel-registry/main"
           ref = "refs/heads/main"
           advertised = subprocess.check_output(["git", "ls-remote",
-              "https://github.com/securely1g/sonic-bazel-registry.git", ref], text=True).split()
+              "https://github.com/sonic-net/sonic-bazel-registry.git", ref], text=True).split()
           assert len(advertised) == 2 and advertised[1] == ref
           maintained_revision = advertised[0]
           assert re.fullmatch(r"[0-9a-f]{40}", maintained_revision)
