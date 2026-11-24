@@ -14,16 +14,16 @@ Create the caller's `MODULE.bazel` with the current iteration pins:
 module(name = "sonic_swss_caller")
 
 bazel_dep(name = "rules_cc", version = "0.2.20")
-bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.20")
+bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.26")
 bazel_dep(name = "sonic-swss", version = "0.0.3", repo_name = "sonic_swss")
 bazel_dep(
     name = "sonic-swss-common",
-    version = "0.0.9-334389eae54afd1f4f5ee69f89c3a7ad2062ee61",
+    version = "0.0.8-2a4ddd070edb719f2e969a880a5cfff711e64e72",
     repo_name = "sonic_swss_common",
 )
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.37-316e298e77ab5cfa69af9b0c05ec24d5d94bbe1e",
+    version = "0.0.44-35726399908a3beb947174e9359f902077928289",
     repo_name = "sonic_build_infra",
 )
 
@@ -40,7 +40,7 @@ single_version_override(
 )
 single_version_override(
     module_name = "libnl3",
-    version = "3.7.0.sonic.7",
+    version = "3.7.0.sonic.10",
 )
 single_version_override(
     module_name = "re2",
@@ -67,7 +67,7 @@ Put `8.5.1` in the caller's `.bazelversion` and add these settings to its
 
 ```text
 common --check_direct_dependencies=off
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main
+common --registry=https://raw.githubusercontent.com/sonic-net/sonic-bazel-registry/main
 common --registry=https://bcr.bazel.build/
 common --lockfile_mode=update
 common --noincompatible_disallow_empty_glob
@@ -87,10 +87,10 @@ compatible with Bazel 8.5.1; releases 0.2.21 and 0.2.22 require a runtime
 toolchain type that this Bazel version does not provide.
 Distroless `0.9.4.sonic.20` retains include fragments for shared infrastructure
 APT imports; Protobuf headers and its runtime are now source-built.
-Run `bazel mod graph` and confirm `libnl3@3.7.0.sonic.7`,
-`rules_distroless@0.9.4.sonic.20`, `protobuf-legacy@3.21.12.sonic.2`, and
-`sonic-build-infra@0.0.37-316e298e77ab5cfa69af9b0c05ec24d5d94bbe1e` are selected,
-with `tar.bzl@0.10.5.sonic.2` and `sonic-dash-api@0.0.5-9b2893e890734a2db0c53a5e5c64b031ec0dcfbd`.
+Run `bazel mod graph` and confirm `libnl3@3.7.0.sonic.10`,
+`rules_distroless@0.9.4.sonic.26`, `protobuf-legacy@3.21.12.sonic.4`, and
+`sonic-build-infra@0.0.44-35726399908a3beb947174e9359f902077928289` are selected,
+with `tar.bzl@0.10.5.sonic.2` and `sonic-dash-api@0.0.6-55310bf7437d67411418c974587adcdc1b194d6b`.
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
 RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
 `-Wdate-time` and `_FORTIFY_SOURCE=3` override. Infrastructure source
@@ -125,7 +125,7 @@ bazel build --config=release @sonic_swss//orchagent:orchagent
 SWSS consumes Common's public Rust library target
 `@sonic_swss_common//crates/swss-common:swss_common`. Common owns its bindings
 and native-library linkage. Bazel resolves shared third-party targets from
-[`sonic-rust-deps@0.0.5-dd364f207d7b320a5af12c81da6d10893f292205`](https://github.com/securely1g/sonic-bazel-registry/tree/main/modules/sonic-rust-deps/0.0.5-dd364f207d7b320a5af12c81da6d10893f292205).
+[`sonic-rust-deps@0.0.5-5bf69bc0a7d9ea9f4a5606264be592867cd29d1e`](https://github.com/sonic-net/sonic-bazel-registry/tree/main/modules/sonic-rust-deps/0.0.5-5bf69bc0a7d9ea9f4a5606264be592867cd29d1e).
 That shared module resolves its tracked Cargo inputs with `rules_rs`. Common
 and SWSS select the same `serde` and `serde_core` targets, so their public Rust
 types use compatible Serde traits without caller repository mappings.

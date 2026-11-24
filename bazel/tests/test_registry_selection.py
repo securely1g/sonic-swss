@@ -10,7 +10,7 @@ import unittest.mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MAIN = "https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main"
+MAIN = "https://raw.githubusercontent.com/sonic-net/sonic-bazel-registry/main"
 OBSERVED_MAIN = "a" * 40
 WORKFLOWS = ("bazel.yml", "codeql-analysis.yml")
 
@@ -28,7 +28,7 @@ class RegistrySelectionTest(unittest.TestCase):
             if command == ["git", "show", "HEAD:.bazelrc"]:
                 return declared
             if command == ["git", "ls-remote",
-                           "https://github.com/securely1g/sonic-bazel-registry.git",
+                           "https://github.com/sonic-net/sonic-bazel-registry.git",
                            "refs/heads/main"]:
                 return OBSERVED_MAIN + "\trefs/heads/main\n"
             raise AssertionError("Unexpected subprocess: " + repr(command))

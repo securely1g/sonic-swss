@@ -3,7 +3,7 @@ common --noincompatible_disallow_empty_glob
 
 # The maintained registry includes the landed DASH entry.
 # Keep module versions, source checksums and toolchain inputs pinned.
-common --registry=https://raw.githubusercontent.com/securely1g/sonic-bazel-registry/main
+common --registry=https://raw.githubusercontent.com/sonic-net/sonic-bazel-registry/main
 common --registry=https://bcr.bazel.build/
 
 # Optional public download defaults prepared by bazel/ci_downloader.sh.
