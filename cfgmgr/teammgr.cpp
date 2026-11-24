@@ -246,13 +246,13 @@ void TeamMgr::doLagTask(Consumer &consumer)
         if (op == SET_COMMAND)
         {
             int min_links = 0;
-            bool fallback = false;
             bool fast_rate = false;
             string admin_status = DEFAULT_ADMIN_STATUS_STR;
             string mtu = DEFAULT_MTU_STR;
             string learn_mode;
             string tpid;
             string sys_mac;
+            string fallback;
 
             for (auto i : kfvFieldsValues(t))
             {
@@ -265,9 +265,15 @@ void TeamMgr::doLagTask(Consumer &consumer)
                 }
                 else if (fvField(i) == "fallback")
                 {
-                    fallback = fvValue(i) == "true";
-                    SWSS_LOG_INFO("Get fallback option %s",
-                            fallback ? "true" : "false");
+                    fallback = fvValue(i);
+                    // Transition mechanism for the fallback field, going from a boolean to a string
+                    if (fallback == "true") {
+                        fallback = "single";
+                    } else if (fallback != "single" && fallback != "static") {
+                        fallback = "none";
+                    }
+                    SWSS_LOG_INFO("Get fallback %s",
+                            fallback.c_str());
                 }
                 else if (fvField(i) == "admin_status")
                 {
@@ -584,7 +590,17 @@ int TeamMgr::update_kernel(const string &alias, const string &system_mac)
     struct rtnl_link *orig_link;
     int err = 0;
     struct nl_addr *nl_addr;
-    MacAddress sys_mac(system_mac);
+    MacAddress sys_mac;
+    try
+    {
+        sys_mac = MacAddress(system_mac);
+    }
+    catch (const std::exception &e)
+    {
+        SWSS_LOG_ERROR("Invalid system_mac '%s' for %s: %s",
+                       system_mac.c_str(), alias.c_str(), e.what());
+        return -EINVAL;
+    }
     struct nl_sock * sockk = nl_socket_alloc();
     uint32_t ifindex = if_nametoindex(alias.c_str());
     uint8_t *addr = const_cast<uint8_t *>(sys_mac.getMac());
@@ -653,11 +669,11 @@ int TeamMgr::update_kernel(const string &alias, const string &system_mac)
 
 bool TeamMgr::setLagSysmac(const string &alias, string &sys_mac)
 {
-    vector<FieldValueTuple> fvs;
-    stringstream    cmd;
     if (sys_mac == "None") {
         sys_mac = m_mac.to_string();
     }
+
+    vector<FieldValueTuple> fvs;
     FieldValueTuple fv("system_mac", sys_mac);
     fvs.push_back(fv);
 
@@ -680,7 +696,7 @@ bool TeamMgr::setLagSysmac(const string &alias, string &sys_mac)
     return true;
 }
 
-task_process_status TeamMgr::addLag(const string &alias, int min_links, bool fallback, bool fast_rate)
+task_process_status TeamMgr::addLag(const string &alias, int min_links, const string &fallback, bool fast_rate)
 {
     SWSS_LOG_ENTER();
 
@@ -732,9 +748,9 @@ task_process_status TeamMgr::addLag(const string &alias, int min_links, bool fal
         conf << ",\"min_ports\":" << min_links;
     }
 
-    if (fallback)
+    if (!fallback.empty())
     {
-        conf << ",\"fallback\":true";
+        conf << ",\"fallback\":\"" << fallback << "\"";
     }
 
     if (fast_rate)
