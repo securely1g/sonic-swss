@@ -36,7 +36,7 @@ MODULE_INCLUDE_ROOTS = {
 MODULE_BUILD_MAPPINGS = {
     "reviewed_infra": {
         "module": "sonic-build-infra",
-        "version": "0.0.44-35726399908a3beb947174e9359f902077928289",
+        "version": "0.0.45-77ef625a4ddafc8cdc15f3cc6aee31eabac8a5de",
     },
     "include_roots": {
         "<swss>": "component_headers",

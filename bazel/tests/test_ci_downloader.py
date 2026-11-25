@@ -71,8 +71,7 @@ class DownloaderBootstrapTest(unittest.TestCase):
         # Replace only the three trust roots in a temporary script copy. The
         # downloaded reader is a probe; the shared reader owns member validation.
         script = (ROOT / "bazel/ci_downloader.sh").read_text()
-        values = {"revision": "a" * 40,
-                  "config_digest": hashlib.sha256(files["source_mirrors.cfg"]).hexdigest(),
+        values = {"config_digest": hashlib.sha256(files["source_mirrors.cfg"]).hexdigest(),
                   "reader_digest": hashlib.sha256(READER).hexdigest(),
                   "manifest_digest": hashlib.sha256(files["cosmos-4.0.2.json"]).hexdigest()}
         for key, value in values.items():
