@@ -23,7 +23,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "sonic-build-infra",
-    version = "0.0.44-35726399908a3beb947174e9359f902077928289",
+    version = "0.0.45-77ef625a4ddafc8cdc15f3cc6aee31eabac8a5de",
     repo_name = "sonic_build_infra",
 )
 
@@ -89,7 +89,7 @@ Distroless `0.9.4.sonic.20` retains include fragments for shared infrastructure
 APT imports; Protobuf headers and its runtime are now source-built.
 Run `bazel mod graph` and confirm `libnl3@3.7.0.sonic.10`,
 `rules_distroless@0.9.4.sonic.26`, `protobuf-legacy@3.21.12.sonic.4`, and
-`sonic-build-infra@0.0.44-35726399908a3beb947174e9359f902077928289` are selected,
+`sonic-build-infra@0.0.45-77ef625a4ddafc8cdc15f3cc6aee31eabac8a5de` are selected,
 with `tar.bzl@0.10.5.sonic.2` and `sonic-dash-api@0.0.6-55310bf7437d67411418c974587adcdc1b194d6b`.
 The managed GCC toolchain supplies `-O2`, stack and architecture hardening,
 RELRO, immediate binding, and early `--as-needed`. SWSS adds its release-specific
@@ -125,7 +125,7 @@ bazel build --config=release @sonic_swss//orchagent:orchagent
 SWSS consumes Common's public Rust library target
 `@sonic_swss_common//crates/swss-common:swss_common`. Common owns its bindings
 and native-library linkage. Bazel resolves shared third-party targets from
-[`sonic-rust-deps@0.0.5-5bf69bc0a7d9ea9f4a5606264be592867cd29d1e`](https://github.com/sonic-net/sonic-bazel-registry/tree/main/modules/sonic-rust-deps/0.0.5-5bf69bc0a7d9ea9f4a5606264be592867cd29d1e).
+[`sonic-rust-deps@0.0.5-4064a814e8530300a7acbad4a9aff0621e2fb98e`](https://github.com/sonic-net/sonic-bazel-registry/tree/main/modules/sonic-rust-deps/0.0.5-4064a814e8530300a7acbad4a9aff0621e2fb98e).
 That shared module resolves its tracked Cargo inputs with `rules_rs`. Common
 and SWSS select the same `serde` and `serde_core` targets, so their public Rust
 types use compatible Serde traits without caller repository mappings.
